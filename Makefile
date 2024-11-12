@@ -4,11 +4,6 @@
 #          Build           #
 # ------------------------ #
 
-.PHONY: install-dev
-install-dev:
-	@uv pip install -e '.[dev]'
-.PHONY: install-dev
-
 install:
 	cargo run --bin stub_gen
 	@touch setup.py
@@ -32,7 +27,7 @@ format-cpp:
 	@cmake-format -i $(shell find . -name 'CMakeLists.txt' -o -name '*.cmake')
 .PHONY: format-cpp
 
-static-checks: install-dev
+static-checks:
 	@black --diff --check $(py-files)
 	@ruff check $(py-files)
 	@mypy --install-types --non-interactive $(py-files)

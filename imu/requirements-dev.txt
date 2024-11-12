@@ -12,5 +12,3 @@ pyserial
 
 # For plotting
 matplotlib
-
-uv
