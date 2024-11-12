@@ -30,6 +30,7 @@ package_data.append("Cargo.toml")
 for ext in ("pyi", "rs", "toml", "so"):
     package_data.extend(glob.iglob(f"imu/**/*.{ext}", recursive=True))
 
+
 class RustBuildExt(build_ext):
     def run(self) -> None:
         # Generate the stub file
