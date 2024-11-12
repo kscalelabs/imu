@@ -3,7 +3,7 @@
 import argparse
 import time
 
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # noqa: PGH003
 
 from imu import HexmoveImuReader
 

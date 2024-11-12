@@ -9,3 +9,6 @@ ruff
 # For testing CAN
 python-can
 pyserial
+
+# For plotting
+matplotlib
