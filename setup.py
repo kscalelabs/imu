@@ -3,6 +3,8 @@
 """Setup script for the project."""
 
 import glob
+import os
+import shutil
 import subprocess
 
 import toml
@@ -28,12 +30,21 @@ package_data.append("Cargo.toml")
 for ext in ("pyi", "rs", "toml", "so"):
     package_data.extend(glob.iglob(f"imu/**/*.{ext}", recursive=True))
 
-
 class RustBuildExt(build_ext):
     def run(self) -> None:
-        # Run the stub generator
+        # Generate the stub file
         subprocess.run(["cargo", "run", "--bin", "stub_gen"], check=True)
-        # Call the original build_ext command
+
+        # Move the generated stub file to parent directory
+        src_file = "actuator/bindings/bindings.pyi"
+        dst_file = "actuator/bindings.pyi"
+        if os.path.exists(src_file) and not os.path.exists(dst_file):
+            shutil.move(src_file, dst_file)
+        if not os.path.exists(dst_file):
+            raise RuntimeError(f"Failed to generate {dst_file}")
+        if os.path.exists(src_file):
+            os.remove(src_file)
+
         super().run()
 
 
