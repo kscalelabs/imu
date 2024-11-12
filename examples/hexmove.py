@@ -13,7 +13,7 @@ def main() -> None:
         print(f"Failed to initialize IMU reader: {e}")
         return
 
-    imu_reader.zero_imu()
+    imu_reader.zero_imu(duration_ms=1000)
 
     try:
         while True:
