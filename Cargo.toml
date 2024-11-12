@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "imu",
     "imu/bindings",
     "imu/hexmove",
 ]
