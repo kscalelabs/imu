@@ -28,9 +28,17 @@ impl PyHexmoveImuReader {
         Ok(PyHexmoveImuData::from(data))
     }
 
-    fn zero_imu(&self, duration_ms: Option<u64>, max_retries: Option<u32>, max_variance: Option<f32>) -> PyResult<()> {
+    #[pyo3(signature = (duration_ms=None, max_retries=None, max_variance=None))]
+    fn zero_imu(
+        &self,
+        duration_ms: Option<u64>,
+        max_retries: Option<u32>,
+        max_variance: Option<f32>,
+    ) -> PyResult<()> {
         let imu_reader = self.inner.lock().unwrap();
-        imu_reader.zero_imu(duration_ms, max_retries, max_variance).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e))
+        imu_reader
+            .zero_imu(duration_ms, max_retries, max_variance)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e))
     }
 
     fn stop(&self) -> PyResult<()> {
