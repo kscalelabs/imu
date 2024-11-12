@@ -110,6 +110,24 @@ impl ImuReader {
         self.data.read().unwrap().clone()
     }
 
+    pub fn get_angles(&self) -> (f32, f32, f32) {
+        let data = self.get_data();
+        (
+            data.x_angle - data.x_angle_offset,
+            data.y_angle - data.y_angle_offset,
+            data.z_angle - data.z_angle_offset,
+        )
+    }
+
+    pub fn get_velocities(&self) -> (f32, f32, f32) {
+        let data = self.get_data();
+        (
+            data.x_velocity,
+            data.y_velocity,
+            data.z_velocity,
+        )
+    }
+
     pub fn stop(&self) {
         let mut running = self.running.write().unwrap();
         *running = false;
