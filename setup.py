@@ -3,10 +3,9 @@
 """Setup script for the project."""
 
 import glob
-import re
 import subprocess
-import toml
 
+import toml
 from setuptools import find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools_rust import Binding, RustExtension

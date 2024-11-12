@@ -13,7 +13,6 @@ def main() -> None:
         print(f"Failed to initialize IMU reader: {e}")
         return
 
-
     imu_reader.zero_imu()
 
     try:

@@ -121,11 +121,7 @@ impl ImuReader {
 
     pub fn get_velocities(&self) -> (f32, f32, f32) {
         let data = self.get_data();
-        (
-            data.x_velocity,
-            data.y_velocity,
-            data.z_velocity,
-        )
+        (data.x_velocity, data.y_velocity, data.z_velocity)
     }
 
     pub fn stop(&self) {
@@ -168,9 +164,7 @@ impl ImuReader {
                         retries
                     ));
                 }
-                println!(
-                    "Calibration failed because of high angular variance. Retrying..."
-                );
+                println!("Calibration failed because of high angular variance. Retrying...");
                 continue;
             }
 
