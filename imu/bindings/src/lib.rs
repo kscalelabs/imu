@@ -24,13 +24,15 @@ impl PyHexmoveImuReader {
 
     fn get_data(&self) -> PyResult<PyHexmoveImuData> {
         let imu_reader = self.inner.lock()?;
-        let data = imu_reader.get_data();
+        let data = imu_reader.get_data()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyHexmoveImuData::from(data))
     }
 
     fn stop(&self) -> PyResult<()> {
         let imu_reader = self.inner.lock()?;
-        imu_reader.stop();
+        imu_reader.stop()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(())
     }
 }
