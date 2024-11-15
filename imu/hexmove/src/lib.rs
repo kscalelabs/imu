@@ -17,10 +17,10 @@ pub struct ImuData {
     pub accel_x: f32,
     pub accel_y: f32,
     pub accel_z: f32,
-    pub w: f32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
+    pub qw: f32,
+    pub qx: f32,
+    pub qy: f32,
+    pub qz: f32,
 }
 
 pub struct ImuReader {
