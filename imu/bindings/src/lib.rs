@@ -29,6 +29,31 @@ impl PyHexmoveImuReader {
         Ok(PyHexmoveImuData::from(data))
     }
 
+    fn get_angles(&self) -> PyResult<(f32, f32, f32)> {
+        let imu_reader = self.inner.lock().unwrap();
+        let (x, y, z) = imu_reader.get_angles();
+        Ok((x, y, z))
+    }
+
+    fn get_velocities(&self) -> PyResult<(f32, f32, f32)> {
+        let imu_reader = self.inner.lock().unwrap();
+        let (x, y, z) = imu_reader.get_velocities();
+        Ok((x, y, z))
+    }
+
+    #[pyo3(signature = (duration_ms=None, max_retries=None, max_variance=None))]
+    fn zero_imu(
+        &self,
+        duration_ms: Option<u64>,
+        max_retries: Option<u32>,
+        max_variance: Option<f32>,
+    ) -> PyResult<()> {
+        let imu_reader = self.inner.lock().unwrap();
+        imu_reader
+            .zero_imu(duration_ms, max_retries, max_variance)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e))
+    }
+
     fn stop(&self) -> PyResult<()> {
         let imu_reader = self.inner.lock()?;
         imu_reader.stop()
@@ -53,6 +78,12 @@ struct PyHexmoveImuData {
     y_velocity: f32,
     #[pyo3(get)]
     z_velocity: f32,
+    #[pyo3(get)]
+    x_angle_offset: f32,
+    #[pyo3(get)]
+    y_angle_offset: f32,
+    #[pyo3(get)]
+    z_angle_offset: f32,
 }
 
 impl From<HexmoveImuData> for PyHexmoveImuData {
@@ -64,6 +95,9 @@ impl From<HexmoveImuData> for PyHexmoveImuData {
             x_velocity: data.x_velocity,
             y_velocity: data.y_velocity,
             z_velocity: data.z_velocity,
+            x_angle_offset: data.x_angle_offset,
+            y_angle_offset: data.y_angle_offset,
+            z_angle_offset: data.z_angle_offset,
         }
     }
 }

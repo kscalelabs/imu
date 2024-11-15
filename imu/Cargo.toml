@@ -1,0 +1,18 @@
+[package]
+name = "imu"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Interface for interacting with various IMU devices"
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[lib]
+name = "imu"
+crate-type = ["rlib"]
+
+[dependencies]
+hexmove = { path = "./hexmove", version = "0.1.2" }
+socketcan = "3.3.0"
+log = "0.4"

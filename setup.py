@@ -3,9 +3,11 @@
 """Setup script for the project."""
 
 import glob
-import re
+import os
+import shutil
 import subprocess
 
+import toml
 from setuptools import find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools_rust import Binding, RustExtension
@@ -13,19 +15,15 @@ from setuptools_rust import Binding, RustExtension
 with open("README.md", "r", encoding="utf-8") as f:
     long_description: str = f.read()
 
+with open("Cargo.toml", "r", encoding="utf-8") as f:
+    cargo_toml = toml.load(f)
+    version: str = cargo_toml["workspace"]["package"]["version"]
 
 with open("imu/requirements.txt", "r", encoding="utf-8") as f:
     requirements: list[str] = f.read().splitlines()
 
-
 with open("imu/requirements-dev.txt", "r", encoding="utf-8") as f:
     requirements_dev: list[str] = f.read().splitlines()
-
-
-with open("imu/__init__.py", "r", encoding="utf-8") as fh:
-    version_re = re.search(r"^__version__ = \"([^\"]*)\"", fh.read(), re.MULTILINE)
-assert version_re is not None, "Could not find version in imu/__init__.py"
-version: str = version_re.group(1)
 
 package_data = [f"imu/{name}" for name in ("py.typed", "requirements.txt", "requirements-dev.txt")]
 package_data.append("Cargo.toml")
@@ -35,9 +33,19 @@ for ext in ("pyi", "rs", "toml", "so"):
 
 class RustBuildExt(build_ext):
     def run(self) -> None:
-        # Run the stub generator
+        # Generate the stub file
         subprocess.run(["cargo", "run", "--bin", "stub_gen"], check=True)
-        # Call the original build_ext command
+
+        # Move the generated stub file to parent directory
+        src_file = "imu/bindings/bindings.pyi"
+        dst_file = "imu/bindings.pyi"
+        if os.path.exists(src_file) and not os.path.exists(dst_file):
+            shutil.move(src_file, dst_file)
+        if not os.path.exists(dst_file):
+            raise RuntimeError(f"Failed to generate {dst_file}")
+        if os.path.exists(src_file):
+            os.remove(src_file)
+
         super().run()
 
 

@@ -128,6 +128,20 @@ impl ImuReader {
         self.data.read()?.clone()
     }
 
+    pub fn get_angles(&self) -> (f32, f32, f32) {
+        let data = self.get_data();
+        (
+            data.x_angle - data.x_angle_offset,
+            data.y_angle - data.y_angle_offset,
+            data.z_angle - data.z_angle_offset,
+        )
+    }
+
+    pub fn get_velocities(&self) -> (f32, f32, f32) {
+        let data = self.get_data();
+        (data.x_velocity, data.y_velocity, data.z_velocity)
+    }
+
     pub fn stop(&self) {
         let mut running = self.running.write()?;
         *running = false;
@@ -180,7 +194,9 @@ impl ImuReader {
             let z_offset = z_samples.iter().sum::<f32>() / samples as f32;
 
             // Update offsets
+
             let mut imu_data = self.data.write()?;
+
             imu_data.x_angle_offset = x_offset;
             imu_data.y_angle_offset = y_offset;
             imu_data.z_angle_offset = z_offset;

@@ -13,13 +13,21 @@ def main() -> None:
         print(f"Failed to initialize IMU reader: {e}")
         return
 
+    imu_reader.zero_imu(duration_ms=1000)
+
     try:
         while True:
-            # Get the current IMU data
-            data = imu_reader.get_data()
+            # # Get the current IMU data
+            # data = imu_reader.get_data()
+
+            # angles = [data.x_angle, data.y_angle, data.z_angle]
+            # velocities = [data.x_velocity, data.y_velocity, data.z_velocity]
+
+            angles = imu_reader.get_angles()
+            velocities = imu_reader.get_velocities()
             print(
-                f"Angular Position: X={data.x_angle}°, Y={data.y_angle}°, Z={data.z_angle}° | "
-                f"Angular Velocity: X={data.x_velocity}°/s, Y={data.y_velocity}°/s, Z={data.z_velocity}°/s"
+                f"Angular Position: X={angles[0]}°, Y={angles[1]}°, Z={angles[2]}° | "
+                f"Angular Velocity: X={velocities[0]}°/s, Y={velocities[1]}°/s, Z={velocities[2]}°/s"
             )
 
             # Sleep for a short duration to avoid spamming the console

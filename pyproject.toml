@@ -70,6 +70,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 [tool.ruff.lint.per-file-ignores]
 
 "__init__.py" = ["E402", "F401", "F403", "F811"]
+"target/package/imu*/__init__.py" = ["N999"]
 
 [tool.ruff.lint.isort]
 
@@ -82,5 +83,5 @@ convention = "google"
 
 [build-system]
 
-requires = ["setuptools>=42", "wheel", "setuptools-rust>=1.5.2"]
+requires = ["setuptools>=42", "wheel", "setuptools-rust>=1.5.2", "toml"]
 build-backend = "setuptools.build_meta"

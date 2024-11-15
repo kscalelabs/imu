@@ -1,2 +1,2 @@
 include Cargo.toml
-recursive-include imu/ *.rs *.pyi *.so *.py *.txt Cargo.toml py.typed
+recursive-include imu/ *.rs *.pyi *.so *.py *.txt *.toml py.typed
