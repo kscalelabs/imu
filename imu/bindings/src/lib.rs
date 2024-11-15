@@ -127,13 +127,13 @@ struct PyHexmoveImuData {
     #[pyo3(get)]
     accel_z: f32,
     #[pyo3(get)]
-    w: f32,
+    qw: f32,
     #[pyo3(get)]
-    x: f32,
+    qx: f32,
     #[pyo3(get)]
-    y: f32,
+    qy: f32,
     #[pyo3(get)]
-    z: f32,
+    qz: f32,
 }
 
 impl From<HexmoveImuData> for PyHexmoveImuData {
@@ -151,10 +151,10 @@ impl From<HexmoveImuData> for PyHexmoveImuData {
             accel_x: data.accel_x,
             accel_y: data.accel_y,
             accel_z: data.accel_z,
-            w: data.w,
-            x: data.x,
-            y: data.y,
-            z: data.z,
+            qw: data.qw,
+            qx: data.qx,
+            qy: data.qy,
+            qz: data.qz,
         }
     }
 }
