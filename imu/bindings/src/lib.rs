@@ -23,21 +23,23 @@ impl PyHexmoveImuReader {
     }
 
     fn get_data(&self) -> PyResult<PyHexmoveImuData> {
-        let imu_reader = self.inner.lock()?;
+        let imu_reader = self.inner.lock().map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         let data = imu_reader.get_data()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyHexmoveImuData::from(data))
     }
 
     fn get_angles(&self) -> PyResult<(f32, f32, f32)> {
-        let imu_reader = self.inner.lock().unwrap();
-        let (x, y, z) = imu_reader.get_angles();
+        let imu_reader = self.inner.lock().map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let (x, y, z) = imu_reader.get_angles()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok((x, y, z))
     }
 
     fn get_velocities(&self) -> PyResult<(f32, f32, f32)> {
-        let imu_reader = self.inner.lock().unwrap();
-        let (x, y, z) = imu_reader.get_velocities();
+        let imu_reader = self.inner.lock().map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let (x, y, z) = imu_reader.get_velocities()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok((x, y, z))
     }
 
@@ -55,7 +57,7 @@ impl PyHexmoveImuReader {
     }
 
     fn stop(&self) -> PyResult<()> {
-        let imu_reader = self.inner.lock()?;
+        let imu_reader = self.inner.lock().map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         imu_reader.stop()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(())
