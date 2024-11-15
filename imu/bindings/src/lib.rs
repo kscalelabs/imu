@@ -60,7 +60,9 @@ impl PyHexmoveImuReader {
             .inner
             .lock()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        let (x, y, z) = imu_reader.get_accelerations().map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let (x, y, z) = imu_reader
+            .get_accelerations()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok((x, y, z))
     }
 
@@ -69,7 +71,9 @@ impl PyHexmoveImuReader {
             .inner
             .lock()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        let (w, x, y, z) = imu_reader.get_quaternion().map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let (w, x, y, z) = imu_reader
+            .get_quaternion()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok((w, x, y, z))
     }
 

@@ -128,7 +128,7 @@ impl ImuReader {
                         // IMU acceleration data (m/s^2)
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB3) {
                             if id == Id::Extended(ext_id) {
-                                let accel_x = 
+                                let accel_x =
                                     i16::from_le_bytes([received_data[0], received_data[1]]) as f32
                                         * 0.01;
                                 let accel_y =
@@ -156,7 +156,7 @@ impl ImuReader {
                                 // Parse quaternion w component from first 4 bytes
                                 let qw_bytes: [u8; 4] = [
                                     received_data[0],
-                                    received_data[1], 
+                                    received_data[1],
                                     received_data[2],
                                     received_data[3],
                                 ];
@@ -166,7 +166,7 @@ impl ImuReader {
                                 let qx_bytes: [u8; 4] = [
                                     received_data[4],
                                     received_data[5],
-                                    received_data[6], 
+                                    received_data[6],
                                     received_data[7],
                                 ];
                                 let qx = f32::from_le_bytes(qx_bytes);
@@ -189,7 +189,7 @@ impl ImuReader {
                                 let qy_bytes: [u8; 4] = [
                                     received_data[0],
                                     received_data[1],
-                                    received_data[2], 
+                                    received_data[2],
                                     received_data[3],
                                 ];
                                 let qy = f32::from_le_bytes(qy_bytes);
