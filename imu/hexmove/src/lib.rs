@@ -14,6 +14,13 @@ pub struct ImuData {
     pub x_angle_offset: f32,
     pub y_angle_offset: f32,
     pub z_angle_offset: f32,
+    pub accel_x: f32,
+    pub accel_y: f32,
+    pub accel_z: f32,
+    pub w: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 
 pub struct ImuReader {
@@ -68,6 +75,7 @@ impl ImuReader {
                         let base_id =
                             0x0B000000 | (serial_number as u32) << 16 | (model as u32) << 8;
 
+                        // IMU angle data
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB1) {
                             if id == Id::Extended(ext_id) {
                                 let x_angle =
@@ -92,6 +100,7 @@ impl ImuReader {
                             error!("Failed to create extended ID for IMU data");
                         }
 
+                        // IMU velocity data
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB2) {
                             if id == Id::Extended(ext_id) {
                                 let x_velocity =
@@ -114,6 +123,95 @@ impl ImuReader {
                             }
                         } else {
                             error!("Failed to create extended ID for IMU velocity data");
+                        }
+
+                        // IMU acceleration data (m/s^2)
+                        if let Some(ext_id) = ExtendedId::new(base_id | 0xB3) {
+                            if id == Id::Extended(ext_id) {
+                                let accel_x = 
+                                    i16::from_le_bytes([received_data[0], received_data[1]]) as f32
+                                        * 0.01;
+                                let accel_y =
+                                    i16::from_le_bytes([received_data[2], received_data[3]]) as f32
+                                        * 0.01;
+                                let accel_z =
+                                    i16::from_le_bytes([received_data[4], received_data[5]]) as f32
+                                        * 0.01;
+
+                                if let Ok(mut imu_data) = data.write() {
+                                    imu_data.accel_x = accel_x;
+                                    imu_data.accel_y = accel_y;
+                                    imu_data.accel_z = accel_z;
+                                } else {
+                                    error!("Failed to write to IMU data");
+                                }
+                            }
+                        } else {
+                            error!("Failed to create extended ID for IMU acceleration data");
+                        }
+
+                        // IMU quaternion data
+                        if let Some(ext_id) = ExtendedId::new(base_id | 0xB4) {
+                            if id == Id::Extended(ext_id) {
+                                // Parse quaternion w component from first 4 bytes
+                                let qw_bytes: [u8; 4] = [
+                                    received_data[0],
+                                    received_data[1], 
+                                    received_data[2],
+                                    received_data[3],
+                                ];
+                                let qw = f32::from_le_bytes(qw_bytes);
+
+                                // Parse quaternion x component from last 4 bytes
+                                let qx_bytes: [u8; 4] = [
+                                    received_data[4],
+                                    received_data[5],
+                                    received_data[6], 
+                                    received_data[7],
+                                ];
+                                let qx = f32::from_le_bytes(qx_bytes);
+
+                                if let Ok(mut imu_data) = data.write() {
+                                    imu_data.qw = qw;
+                                    imu_data.qx = qx;
+                                } else {
+                                    error!("Failed to write quaternion data to IMU data");
+                                }
+                            }
+                        } else {
+                            error!("Failed to create extended ID for IMU quaternion data");
+                        }
+
+                        // IMU quaternion data
+                        if let Some(ext_id) = ExtendedId::new(base_id | 0xB5) {
+                            if id == Id::Extended(ext_id) {
+                                // Parse quaternion y component from first 4 bytes
+                                let qy_bytes: [u8; 4] = [
+                                    received_data[0],
+                                    received_data[1],
+                                    received_data[2], 
+                                    received_data[3],
+                                ];
+                                let qy = f32::from_le_bytes(qy_bytes);
+
+                                // Parse quaternion z component from last 4 bytes
+                                let qz_bytes: [u8; 4] = [
+                                    received_data[4],
+                                    received_data[5],
+                                    received_data[6],
+                                    received_data[7],
+                                ];
+                                let qz = f32::from_le_bytes(qz_bytes);
+
+                                if let Ok(mut imu_data) = data.write() {
+                                    imu_data.qy = qy;
+                                    imu_data.qz = qz;
+                                } else {
+                                    error!("Failed to write quaternion data to IMU data");
+                                }
+                            }
+                        } else {
+                            error!("Failed to create extended ID for IMU quaternion data");
                         }
                     }
                     Ok(CanFrame::Remote(_)) => {
@@ -150,6 +248,16 @@ impl ImuReader {
     pub fn get_velocities(&self) -> Result<(f32, f32, f32), String> {
         let data = self.get_data()?;
         Ok((data.x_velocity, data.y_velocity, data.z_velocity))
+    }
+
+    pub fn get_accelerations(&self) -> Result<(f32, f32, f32), String> {
+        let data = self.get_data()?;
+        Ok((data.accel_x, data.accel_y, data.accel_z))
+    }
+
+    pub fn get_quaternion(&self) -> Result<(f32, f32, f32, f32), String> {
+        let data = self.get_data()?;
+        Ok((data.qw, data.qx, data.qy, data.qz))
     }
 
     pub fn stop(&self) -> Result<(), String> {
