@@ -65,19 +65,20 @@ impl ImuReader {
                         let received_data = data_frame.data();
                         let id = data_frame.id();
 
-                        let base_id = 0x0B000000 | (serial_number as u32) << 16 | (model as u32) << 8;
+                        let base_id =
+                            0x0B000000 | (serial_number as u32) << 16 | (model as u32) << 8;
 
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB1) {
                             if id == Id::Extended(ext_id) {
-                                let x_angle = i16::from_le_bytes([received_data[0], received_data[1]])
-                                    as f32
-                                    * 0.01;
-                                let y_angle = i16::from_le_bytes([received_data[2], received_data[3]])
-                                    as f32
-                                    * 0.01;
-                                let z_angle = i16::from_le_bytes([received_data[4], received_data[5]])
-                                    as f32
-                                    * 0.01;
+                                let x_angle =
+                                    i16::from_le_bytes([received_data[0], received_data[1]]) as f32
+                                        * 0.01;
+                                let y_angle =
+                                    i16::from_le_bytes([received_data[2], received_data[3]]) as f32
+                                        * 0.01;
+                                let z_angle =
+                                    i16::from_le_bytes([received_data[4], received_data[5]]) as f32
+                                        * 0.01;
 
                                 if let Ok(mut imu_data) = data.write() {
                                     imu_data.x_angle = x_angle;
@@ -130,7 +131,10 @@ impl ImuReader {
     }
 
     pub fn get_data(&self) -> Result<ImuData, String> {
-        let imu_data = self.data.read().map_err(|e| format!("Failed to acquire read lock: {}", e))?;
+        let imu_data = self
+            .data
+            .read()
+            .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
         Ok(imu_data.clone())
     }
 
@@ -149,7 +153,10 @@ impl ImuReader {
     }
 
     pub fn stop(&self) -> Result<(), String> {
-        let mut running = self.running.write().map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+        let mut running = self
+            .running
+            .write()
+            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
         *running = false;
         Ok(())
     }
@@ -189,9 +196,7 @@ impl ImuReader {
                         retries
                     ));
                 }
-                println!(
-                    "Calibration failed because of high angular variance. Retrying..."
-                );
+                println!("Calibration failed because of high angular variance. Retrying...");
                 continue;
             }
 
@@ -202,7 +207,10 @@ impl ImuReader {
 
             // Update offsets
 
-            let mut imu_data = self.data.write().map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+            let mut imu_data = self
+                .data
+                .write()
+                .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
             imu_data.x_angle_offset = x_offset;
             imu_data.y_angle_offset = y_offset;
