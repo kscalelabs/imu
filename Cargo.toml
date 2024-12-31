@@ -4,6 +4,7 @@ members = [
     "imu",
     "imu/bindings",
     "imu/hexmove",
+    "imu/hiwonder",
 ]
 resolver = "2"
 
