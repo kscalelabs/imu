@@ -22,10 +22,11 @@ impl PyHiwonderImu {
     }
 
     fn read_data(&mut self) -> PyResult<Option<([f32; 3], [f32; 3], [f32; 3])>> {
-        let mut imu = self.inner
+        let mut imu = self
+            .inner
             .lock()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         imu.read_data()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
-} 
+}

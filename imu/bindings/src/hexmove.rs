@@ -160,4 +160,4 @@ impl From<HexmoveImuData> for PyHexmoveImuData {
             qz: data.qz,
         }
     }
-} 
+}

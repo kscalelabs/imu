@@ -1,6 +1,6 @@
+use serialport;
 use std::io::{self, Read};
 use std::time::Duration;
-use serialport;
 
 #[derive(Debug, PartialEq)]
 enum FrameState {
@@ -22,8 +22,6 @@ pub struct IMU {
     gyro: [f32; 3],
     angle: [f32; 3],
 }
-
-
 
 impl IMU {
     pub fn new(interface: &str, baud_rate: u32) -> io::Result<Self> {
@@ -144,36 +142,77 @@ impl IMU {
         let acc_z = ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0 * k_acc;
 
         [
-            if acc_x >= k_acc { acc_x - 2.0 * k_acc } else { acc_x },
-            if acc_y >= k_acc { acc_y - 2.0 * k_acc } else { acc_y },
-            if acc_z >= k_acc { acc_z - 2.0 * k_acc } else { acc_z },
+            if acc_x >= k_acc {
+                acc_x - 2.0 * k_acc
+            } else {
+                acc_x
+            },
+            if acc_y >= k_acc {
+                acc_y - 2.0 * k_acc
+            } else {
+                acc_y
+            },
+            if acc_z >= k_acc {
+                acc_z - 2.0 * k_acc
+            } else {
+                acc_z
+            },
         ]
     }
 
     fn get_gyro(datahex: &[u8; 8]) -> [f32; 3] {
         let k_gyro = 2000.0;
-        let gyro_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_gyro;
-        let gyro_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_gyro;
-        let gyro_z = ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0 * k_gyro;
+        let gyro_x =
+            ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_gyro;
+        let gyro_y =
+            ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_gyro;
+        let gyro_z =
+            ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0 * k_gyro;
 
         [
-            if gyro_x >= k_gyro { gyro_x - 2.0 * k_gyro } else { gyro_x },
-            if gyro_y >= k_gyro { gyro_y - 2.0 * k_gyro } else { gyro_y },
-            if gyro_z >= k_gyro { gyro_z - 2.0 * k_gyro } else { gyro_z },
+            if gyro_x >= k_gyro {
+                gyro_x - 2.0 * k_gyro
+            } else {
+                gyro_x
+            },
+            if gyro_y >= k_gyro {
+                gyro_y - 2.0 * k_gyro
+            } else {
+                gyro_y
+            },
+            if gyro_z >= k_gyro {
+                gyro_z - 2.0 * k_gyro
+            } else {
+                gyro_z
+            },
         ]
     }
 
     fn get_angle(datahex: &[u8; 8]) -> [f32; 3] {
         let k_angle = 180.0;
-        let angle_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_angle;
-        let angle_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_angle;
-        let angle_z = ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0 * k_angle;
+        let angle_x =
+            ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_angle;
+        let angle_y =
+            ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_angle;
+        let angle_z =
+            ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0 * k_angle;
 
         [
-            if angle_x >= k_angle { angle_x - 2.0 * k_angle } else { angle_x },
-            if angle_y >= k_angle { angle_y - 2.0 * k_angle } else { angle_y },
-            if angle_z >= k_angle { angle_z - 2.0 * k_angle } else { angle_z },
+            if angle_x >= k_angle {
+                angle_x - 2.0 * k_angle
+            } else {
+                angle_x
+            },
+            if angle_y >= k_angle {
+                angle_y - 2.0 * k_angle
+            } else {
+                angle_y
+            },
+            if angle_z >= k_angle {
+                angle_z - 2.0 * k_angle
+            } else {
+                angle_z
+            },
         ]
     }
-
 }
