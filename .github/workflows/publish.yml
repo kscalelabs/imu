@@ -4,6 +4,19 @@ on:
   release:
     types: [created]
   workflow_dispatch:
+    inputs:
+      publish_imu:
+        description: 'Publish imu package'
+        type: boolean
+        default: false
+      publish_hexmove:
+        description: 'Publish hexmove package'
+        type: boolean
+        default: false
+      publish_hiwonder:
+        description: 'Publish hiwonder package'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -129,6 +142,7 @@ jobs:
     name: Build and publish Rust package
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    if: ${{ inputs.publish_imu || inputs.publish_hexmove || inputs.publish_hiwonder }}
 
     steps:
       - name: Checkout code
@@ -160,9 +174,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-index
 
-      - name: Publish imu and hexmove packages to crates.io
+      - name: Publish imu package to crates.io
+        if: ${{ inputs.publish_imu }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          cargo publish -p imu
-          cargo publish -p hexmove
+        run: cargo publish -p imu
+
+      - name: Publish hexmove package to crates.io
+        if: ${{ inputs.publish_hexmove }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p hexmove
+
+      - name: Publish hiwonder package to crates.io
+        if: ${{ inputs.publish_hiwonder }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p hiwonder
