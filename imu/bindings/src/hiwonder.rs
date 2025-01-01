@@ -1,12 +1,11 @@
 use hiwonder::IMU;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
-use pyo3_stub_gen::define_stub_info_gatherer;
 use std::sync::{Arc, Mutex};
 
 #[gen_stub_pyclass]
 #[pyclass(name = "HiwonderImu")]
-struct PyHiwonderImu {
+pub struct PyHiwonderImu {
     inner: Arc<Mutex<IMU>>,
 }
 
@@ -29,12 +28,4 @@ impl PyHiwonderImu {
         imu.read_data()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
     }
-}
-
-#[pymodule]
-fn bindings_hiwonder(py: Python<'_>, m: &Bound<PyModule>) -> PyResult<()> {
-    m.add("HiwonderImu", py.get_type::<PyHiwonderImu>())?;
-    Ok(())
-}
-
-define_stub_info_gatherer!(stub_info);
+} 

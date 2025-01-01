@@ -1,8 +1,0 @@
-[build-system]
-requires = ["maturin>=1.1,<2.0"]
-build-backend = "maturin"
-
-[project]
-name = "bindings_hiwonder"
-version = "0.1.0"
-requires-python = ">=3.9"

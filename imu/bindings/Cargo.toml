@@ -20,3 +20,4 @@ pyo3-stub-gen = ">= 0.6.0"
 
 # Other packages in the workspace.
 hexmove = { path = "../hexmove" }
+hiwonder = { path = "../hiwonder" }
