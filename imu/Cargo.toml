@@ -14,5 +14,6 @@ crate-type = ["rlib"]
 
 [dependencies]
 hexmove = { path = "./hexmove", version = "0.1.2" }
+hiwonder = { path = "./hiwonder", version = "0.1.0" }
 socketcan = "3.3.0"
 log = "0.4"
