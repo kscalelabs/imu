@@ -45,32 +45,39 @@ impl IMU {
             // println!("angle: {:10.3} {:10.3} {:10.3}", self.angle[0], self.angle[1], self.angle[2]);
             match self.frame_state {
                 FrameState::Idle => {
-                    //* 0x55 is SOF */
-                    if self.byte_num == 0 && data == 0x55 {
+                    if data == 0x55 && self.byte_num == 0 {
                         self.checksum = data;
                         self.byte_num = 1;
                         continue;
                     } else if self.byte_num == 1 {
-                        self.checksum = self.checksum.wrapping_add(data) ;
+                        self.checksum = self.checksum.wrapping_add(data);
                         match data {
-                            0x51 => self.frame_state = FrameState::Acc,
-                            0x52 => self.frame_state = FrameState::Gyro,
-                            0x53 => self.frame_state = FrameState::Angle,
+                            0x51 => {
+                                self.frame_state = FrameState::Acc;
+                                self.byte_num = 2;
+                            }
+                            0x52 => {
+                                self.frame_state = FrameState::Gyro;
+                                self.byte_num = 2;
+                            }
+                            0x53 => {
+                                self.frame_state = FrameState::Angle;
+                                self.byte_num = 2;
+                            }
                             _ => {
-                                // self.reset();
-                                // 54 is mag field, 55 is D0-D3, 56 is air press
-                                continue;
+                                self.reset();
                             }
                         }
-                        self.byte_num += 1;
                     }
                 }
                 FrameState::Acc => {
+                    // println!("Acc state: byte_num={}, data=0x{:02x}, checksum=0x{:02x}", self.byte_num, data, self.checksum);
                     if self.byte_num < 10 {
                         self.acc_data[self.byte_num - 2] = data;
                         self.checksum = self.checksum.wrapping_add(data);
                         self.byte_num += 1;
                     } else {
+                        // println!("Acc checksum compare: data=0x{:02x}, calculated=0x{:02x}", data, self.checksum & 0xFF);
                         if data == (self.checksum & 0xFF) {
                             self.acc = Self::get_acc(&self.acc_data);
                         }
@@ -113,6 +120,7 @@ impl IMU {
     }
 
     fn get_acc(datahex: &[u8; 8]) -> [f32; 3] {
+        println!("Called Get Acc: {:02x?}", datahex);
         let k_acc = 16.0;
         let acc_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_acc;
         let acc_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_acc;
@@ -126,8 +134,6 @@ impl IMU {
     }
 
     fn get_gyro(datahex: &[u8; 8]) -> [f32; 3] {
-        println!("Called Get Gyro: {:02x?}", datahex);
-
         let k_gyro = 2000.0;
         let gyro_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_gyro;
         let gyro_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_gyro;
@@ -141,7 +147,6 @@ impl IMU {
     }
 
     fn get_angle(datahex: &[u8; 8]) -> [f32; 3] {
-        println!("Called Get Angle: {:02x?}", datahex);
         let k_angle = 180.0;
         let angle_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_angle;
         let angle_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_angle;
