@@ -1,5 +1,3 @@
-use std::io::{self, Read};
-use std::time::Duration;
 
 
 #[derive(Debug)]
@@ -10,7 +8,7 @@ enum FrameState {
     Angle,
 }
 
-struct IMU {
+pub struct IMU {
     frame_state: FrameState,
     byte_num: usize,
     checksum: u8,
@@ -23,7 +21,7 @@ struct IMU {
 }
 
 impl IMU {
-    fn new() -> Self {
+    pub fn new() -> Self {
         IMU {
             frame_state: FrameState::Idle,
             byte_num: 0,
@@ -37,12 +35,8 @@ impl IMU {
         }
     }
 
-    fn process_data(&mut self, input_data: &[u8]) {
+    pub fn process_data(&mut self, input_data: &[u8]) {
         for &data in input_data {
-            // println!("frame: {:?}", self.frame_state);
-            // println!("byte_num: {}", self.byte_num);
-            // println!("data: 0x{:02x}", data);
-            // println!("angle: {:10.3} {:10.3} {:10.3}", self.angle[0], self.angle[1], self.angle[2]);
             match self.frame_state {
                 FrameState::Idle => {
                     if data == 0x55 && self.byte_num == 0 {
@@ -71,13 +65,11 @@ impl IMU {
                     }
                 }
                 FrameState::Acc => {
-                    // println!("Acc state: byte_num={}, data=0x{:02x}, checksum=0x{:02x}", self.byte_num, data, self.checksum);
                     if self.byte_num < 10 {
                         self.acc_data[self.byte_num - 2] = data;
                         self.checksum = self.checksum.wrapping_add(data);
                         self.byte_num += 1;
                     } else {
-                        // println!("Acc checksum compare: data=0x{:02x}, calculated=0x{:02x}", data, self.checksum & 0xFF);
                         if data == (self.checksum & 0xFF) {
                             self.acc = Self::get_acc(&self.acc_data);
                         }
@@ -120,7 +112,6 @@ impl IMU {
     }
 
     fn get_acc(datahex: &[u8; 8]) -> [f32; 3] {
-        println!("Called Get Acc: {:02x?}", datahex);
         let k_acc = 16.0;
         let acc_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_acc;
         let acc_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_acc;
@@ -166,37 +157,5 @@ impl IMU {
             self.gyro[0], self.gyro[1], self.gyro[2],
             self.angle[0], self.angle[1], self.angle[2]
         );
-    }
-}
-
-fn main() -> io::Result<()> {
-    // You can also take port and baud rate from command line arguments
-    let port = "/dev/ttyUSB0";
-    let baud_rate = 9600;
-
-    let port_name = "/dev/ttyUSB0";
-
-    let mut port = serialport::new(port_name, baud_rate)
-        .timeout(Duration::from_millis(500)) // 0.5 second timeout
-        .open()
-        .expect("Failed to open serial port");
-
-
-    println!("Serial port {} opened.", port.name().unwrap());
-
-    let mut imu = IMU::new();
-    let mut buffer: Vec<u8> = vec![0; 1024];
-
-    loop {
-        match port.read(&mut buffer) {
-            Ok(bytes_read) => {
-                if bytes_read > 0 {
-                    imu.process_data(&buffer[..bytes_read]);
-                }
-            }
-            Err(e) => {
-                eprintln!("Error reading from serial port: {}", e);
-            }
-        }
     }
 }
