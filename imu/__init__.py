@@ -4,3 +4,7 @@ from .bindings import (
     PyHexmoveImuData as HexmoveImuData,
     PyHexmoveImuReader as HexmoveImuReader,
 )
+
+from .bindings_hiwonder import (
+    PyHiwonderImu as HiwonderImu,
+)

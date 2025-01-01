@@ -123,7 +123,6 @@ impl IMU {
                     } else {
                         if data == (self.checksum & 0xFF) {
                             self.angle = Self::get_angle(&self.angle_data);
-                            self.print_results();
                         }
                         self.reset();
                     }
@@ -177,12 +176,4 @@ impl IMU {
         ]
     }
 
-    fn print_results(&self) {
-        println!(
-            "acc: {:10.3} {:10.3} {:10.3}\ngyro: {:10.3} {:10.3} {:10.3}\nangle: {:10.3} {:10.3} {:10.3}",
-            self.acc[0], self.acc[1], self.acc[2],
-            self.gyro[0], self.gyro[1], self.gyro[2],
-            self.angle[0], self.angle[1], self.angle[2]
-        );
-    }
 }
