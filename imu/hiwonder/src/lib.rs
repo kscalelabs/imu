@@ -1,6 +1,8 @@
+use std::io::{self, Read};
+use std::time::Duration;
+use serialport;
 
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum FrameState {
     Idle,
     Acc,
@@ -9,6 +11,7 @@ enum FrameState {
 }
 
 pub struct IMU {
+    port: Box<dyn serialport::SerialPort>,
     frame_state: FrameState,
     byte_num: usize,
     checksum: u8,
@@ -20,9 +23,16 @@ pub struct IMU {
     angle: [f32; 3],
 }
 
+
+
 impl IMU {
-    pub fn new() -> Self {
-        IMU {
+    pub fn new(interface: &str, baud_rate: u32) -> io::Result<Self> {
+        let port = serialport::new(interface, baud_rate)
+            .timeout(Duration::from_millis(500))
+            .open()?;
+
+        Ok(IMU {
+            port: port,
             frame_state: FrameState::Idle,
             byte_num: 0,
             checksum: 0,
@@ -32,6 +42,23 @@ impl IMU {
             acc: [0.0; 3],
             gyro: [0.0; 3],
             angle: [0.0; 3],
+        })
+    }
+
+    pub fn read_data(&mut self) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3])>> {
+        let mut buffer = vec![0; 1024];
+        match self.port.read(&mut buffer) {
+            Ok(bytes_read) if bytes_read > 0 => {
+                self.process_data(&buffer[..bytes_read]);
+                // Only return data when we have a complete angle reading
+                if self.frame_state == FrameState::Idle {
+                    Ok(Some((self.acc, self.gyro, self.angle)))
+                } else {
+                    Ok(None)
+                }
+            }
+            Ok(_) => Ok(None),
+            Err(e) => Err(e),
         }
     }
 
