@@ -1,4 +1,4 @@
-from bindings_hiwonder import HiwonderImu 
+from imu import HiwonderImu 
 import time
 
 def main():
