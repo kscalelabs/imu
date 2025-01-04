@@ -2,6 +2,38 @@ use serialport;
 use std::io::{self, Read};
 use std::time::Duration;
 
+// #[derive(Debug)]
+// pub enum ImuError {
+//     SerialError(serialport::Error),
+//     WriteError(std::io::Error),
+//     ReadError(std::io::Error),
+//     InvalidPacket,
+// }
+
+// impl From<std::io::Error> for ImuError {
+//     fn from(error: std::io::Error) -> Self {
+//         ImuError::WriteError(error)
+//     }
+// }
+
+// impl From<serialport::Error> for ImuError {
+//     fn from(error: serialport::Error) -> Self {
+//         ImuError::SerialError(error)
+//     }
+
+// }
+
+// impl std::fmt::Display for ImuError {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             ImuError::ReadError(e) => write!(f, "Read error: {}", e),
+//             ImuError::WriteError(e) => write!(f, "Write error: {}", e),
+//             ImuError::SerialError(e) => write!(f, "Serial error: {}", e),
+//             ImuError::InvalidPacket => write!(f, "Invalid packet"),
+//         }
+//     }
+// }
+
 #[derive(Debug, PartialEq)]
 enum FrameState {
     Idle,
@@ -26,13 +58,14 @@ pub struct IMU {
     quaternion: [f32; 4],
 }
 
+
 impl IMU {
-    pub fn new(interface: &str, baud_rate: u32) -> io::Result<Self> {
+    pub fn new(interface: &str, baud_rate: u32) -> Result<Self, io::Error> {
         let port = serialport::new(interface, baud_rate)
             .timeout(Duration::from_millis(500))
             .open()?;
 
-        Ok(IMU {
+        let mut imu = IMU {
             port: port,
             frame_state: FrameState::Idle,
             byte_num: 0,
@@ -45,7 +78,37 @@ impl IMU {
             gyro: [0.0; 3],
             angle: [0.0; 3],
             quaternion: [0.0; 4],
-        })
+        };
+
+        imu.initialize()?;
+        Ok(imu)
+    }
+
+    fn initialize(&mut self) -> Result<(), io::Error> {
+        // Commands as vectors
+        let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
+        let config_cmd = vec![0xFF, 0xAA, 0x02, 0x0E, 0x02];
+        let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
+
+        // Alternative:
+        // let mut packet = Vec::with_capacity(5 + data.len());
+        // packet.push(0x55); // many of these...
+        // self.port.write_all(&packet)
+
+        // Send commands in sequence
+        self.write_command(&unlock_cmd)?;
+        self.write_command(&config_cmd)?;
+        self.write_command(&save_cmd)?;
+        
+        Ok(())
+    }
+
+    fn write_command(&mut self, command: &[u8]) -> Result<(), io::Error> {
+        self.port.write_all(command)?;
+        // 200 hz -> 5ms
+        std::thread::sleep(Duration::from_millis(10));
+        println!("wrote command: {:?}", command);
+        Ok(())
     }
 
     pub fn read_data(&mut self) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3], [f32; 4])>> {
@@ -90,7 +153,7 @@ impl IMU {
                                 self.byte_num = 2;
                             }
                             0x59 => {
-                                println!("frame_state: {:?}", self.frame_state);
+                                // println!("frame_state: {:?}", self.frame_state);
                                 self.frame_state = FrameState::Quaternion;
                                 self.byte_num = 2;
                             }
