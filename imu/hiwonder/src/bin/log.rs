@@ -41,7 +41,7 @@ impl From<([f32; 3], [f32; 3], [f32; 3], [f32; 4])> for IMUData {
 }
 
 fn main() -> io::Result<()> {
-    let mut imu = IMU::new("/dev/ttyUSB0", 9600)?;
+    let mut imu = IMU::new("/dev/ttyUSB0", 9600).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     loop {
         match imu.read_data() {

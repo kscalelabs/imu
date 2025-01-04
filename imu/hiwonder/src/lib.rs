@@ -2,37 +2,39 @@ use serialport;
 use std::io::{self, Read};
 use std::time::Duration;
 
-// #[derive(Debug)]
-// pub enum ImuError {
-//     SerialError(serialport::Error),
-//     WriteError(std::io::Error),
-//     ReadError(std::io::Error),
-//     InvalidPacket,
-// }
+#[derive(Debug)]
+pub enum ImuError {
+    SerialError(serialport::Error),
+    WriteError(std::io::Error),
+    ReadError(std::io::Error),
+    InvalidPacket,
+}
 
-// impl From<std::io::Error> for ImuError {
-//     fn from(error: std::io::Error) -> Self {
-//         ImuError::WriteError(error)
-//     }
-// }
+impl From<std::io::Error> for ImuError {
+    fn from(error: std::io::Error) -> Self {
+        ImuError::WriteError(error)
+    }
+}
 
-// impl From<serialport::Error> for ImuError {
-//     fn from(error: serialport::Error) -> Self {
-//         ImuError::SerialError(error)
-//     }
+impl From<serialport::Error> for ImuError {
+    fn from(error: serialport::Error) -> Self {
+        ImuError::SerialError(error)
+    }
 
-// }
+}
 
-// impl std::fmt::Display for ImuError {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             ImuError::ReadError(e) => write!(f, "Read error: {}", e),
-//             ImuError::WriteError(e) => write!(f, "Write error: {}", e),
-//             ImuError::SerialError(e) => write!(f, "Serial error: {}", e),
-//             ImuError::InvalidPacket => write!(f, "Invalid packet"),
-//         }
-//     }
-// }
+impl std::fmt::Display for ImuError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ImuError::ReadError(e) => write!(f, "Read error: {}", e),
+            ImuError::WriteError(e) => write!(f, "Write error: {}", e),
+            ImuError::SerialError(e) => write!(f, "Serial error: {}", e),
+            ImuError::InvalidPacket => write!(f, "Invalid packet"),
+        }
+    }
+}
+
+impl std::error::Error for ImuError {}
 
 #[derive(Debug, PartialEq)]
 enum FrameState {
@@ -60,7 +62,7 @@ pub struct IMU {
 
 
 impl IMU {
-    pub fn new(interface: &str, baud_rate: u32) -> Result<Self, io::Error> {
+    pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
         let port = serialport::new(interface, baud_rate)
             .timeout(Duration::from_millis(500))
             .open()?;
@@ -84,7 +86,9 @@ impl IMU {
         Ok(imu)
     }
 
-    fn initialize(&mut self) -> Result<(), io::Error> {
+    fn initialize(&mut self) -> Result<(), ImuError> {
+
+        // * Set IMU Parameters to Read
         // Commands as vectors
         let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
         let config_cmd = vec![0xFF, 0xAA, 0x02, 0x0E, 0x02];
@@ -99,15 +103,20 @@ impl IMU {
         self.write_command(&unlock_cmd)?;
         self.write_command(&config_cmd)?;
         self.write_command(&save_cmd)?;
-        
+
+
+        // * Set IMU Freq 
+        // RATE (0x03) Hz: 0x01=0.2, 0x02=0.5, 0x03=1, 0x04=2, 0x05=5, 0x06=10, 
+        //0x07=20, 0x08=50, 0x09=100, 0x0B=200hz, 0x0C=Single, 0x0D=None
+        let freq_cmd = vec![0xFF, 0xAA, 0x03, 0x04, 0x00]; // 0x0B 200hz
+        self.write_command(&freq_cmd)?;
         Ok(())
     }
 
-    fn write_command(&mut self, command: &[u8]) -> Result<(), io::Error> {
-        self.port.write_all(command)?;
+    fn write_command(&mut self, command: &[u8]) -> Result<(), ImuError> {
+        self.port.write_all(command).map_err(ImuError::WriteError)?;
         // 200 hz -> 5ms
-        std::thread::sleep(Duration::from_millis(10));
-        println!("wrote command: {:?}", command);
+        std::thread::sleep(Duration::from_millis(30));
         Ok(())
     }
 
@@ -137,7 +146,6 @@ impl IMU {
                         self.byte_num = 1;
                         continue;
                     } else if self.byte_num == 1 {
-                        println!("Command byte: 0x{:02x}", data);
                         self.checksum = self.checksum.wrapping_add(data);
                         match data {
                             0x51 => {
@@ -205,9 +213,7 @@ impl IMU {
                         self.quaternion_data[self.byte_num - 2] = data;
                         self.checksum = self.checksum.wrapping_add(data);
                         self.byte_num += 1;
-                        println!("checksum: {}", self.checksum);
                     } else {
-                        println!("checksum: {}", self.checksum);
                         if data == (self.checksum & 0xFF) {
                             self.quaternion = Self::get_quaternion(&self.quaternion_data);
                         }
