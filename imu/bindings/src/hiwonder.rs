@@ -21,7 +21,7 @@ impl PyHiwonderImu {
         })
     }
 
-    fn read_data(&mut self) -> PyResult<Option<([f32; 3], [f32; 3], [f32; 3])>> {
+    fn read_data(&mut self) -> PyResult<Option<([f32; 3], [f32; 3], [f32; 3], [f32; 4])>> {
         let mut imu = self
             .inner
             .lock()

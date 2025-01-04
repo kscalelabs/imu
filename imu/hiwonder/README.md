@@ -4,7 +4,7 @@ Link to [IMU](https://www.hiwonder.com/products/imu-module?variant=4037587530555
 ### HiWonder IMU Protocol 
 - Data Length: 11 bytes
 - Header/start/SOF Byte: 0x55
-- Command Byte: 0x51 accel data, 0x52 Gyroscope data, 0x53 angle data
+- Command Byte: 0x51 accel data, 0x52 Gyroscope data, 0x53 angle data, 0x59 quaternion data
 - Data: 8 bytes
 - CheckSum Byte: 1 byte (only lowest 8 bits of summation of all bytes in packet is used (`CheckSum & 0xff`))
 

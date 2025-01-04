@@ -8,6 +8,7 @@ enum FrameState {
     Acc,
     Gyro,
     Angle,
+    Quaternion,
 }
 
 pub struct IMU {
@@ -18,9 +19,11 @@ pub struct IMU {
     acc_data: [u8; 8],
     gyro_data: [u8; 8],
     angle_data: [u8; 8],
+    quaternion_data: [u8; 8],
     acc: [f32; 3],
     gyro: [f32; 3],
     angle: [f32; 3],
+    quaternion: [f32; 4],
 }
 
 impl IMU {
@@ -37,20 +40,22 @@ impl IMU {
             acc_data: [0u8; 8],
             gyro_data: [0u8; 8],
             angle_data: [0u8; 8],
+            quaternion_data: [0u8; 8],
             acc: [0.0; 3],
             gyro: [0.0; 3],
             angle: [0.0; 3],
+            quaternion: [0.0; 4],
         })
     }
 
-    pub fn read_data(&mut self) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3])>> {
+    pub fn read_data(&mut self) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3], [f32; 4])>> {
         let mut buffer = vec![0; 1024];
         match self.port.read(&mut buffer) {
             Ok(bytes_read) if bytes_read > 0 => {
                 self.process_data(&buffer[..bytes_read]);
                 // Only return data when we have a complete angle reading
                 if self.frame_state == FrameState::Idle {
-                    Ok(Some((self.acc, self.gyro, self.angle)))
+                    Ok(Some((self.acc, self.gyro, self.angle, self.quaternion)))
                 } else {
                     Ok(None)
                 }
@@ -69,6 +74,7 @@ impl IMU {
                         self.byte_num = 1;
                         continue;
                     } else if self.byte_num == 1 {
+                        println!("Command byte: 0x{:02x}", data);
                         self.checksum = self.checksum.wrapping_add(data);
                         match data {
                             0x51 => {
@@ -83,12 +89,18 @@ impl IMU {
                                 self.frame_state = FrameState::Angle;
                                 self.byte_num = 2;
                             }
+                            0x59 => {
+                                println!("frame_state: {:?}", self.frame_state);
+                                self.frame_state = FrameState::Quaternion;
+                                self.byte_num = 2;
+                            }
                             _ => {
                                 self.reset();
                             }
                         }
                     }
                 }
+                // 11 bytes per packet for all, including the SOF. 
                 FrameState::Acc => {
                     if self.byte_num < 10 {
                         self.acc_data[self.byte_num - 2] = data;
@@ -121,6 +133,20 @@ impl IMU {
                     } else {
                         if data == (self.checksum & 0xFF) {
                             self.angle = Self::get_angle(&self.angle_data);
+                        }
+                        self.reset();
+                    }
+                }
+                FrameState::Quaternion => {
+                    if self.byte_num < 10 {
+                        self.quaternion_data[self.byte_num - 2] = data;
+                        self.checksum = self.checksum.wrapping_add(data);
+                        self.byte_num += 1;
+                        println!("checksum: {}", self.checksum);
+                    } else {
+                        println!("checksum: {}", self.checksum);
+                        if data == (self.checksum & 0xFF) {
+                            self.quaternion = Self::get_quaternion(&self.quaternion_data);
                         }
                         self.reset();
                     }
@@ -214,5 +240,13 @@ impl IMU {
                 angle_z
             },
         ]
+    }
+
+    fn get_quaternion(datahex: &[u8; 8]) -> [f32; 4] {
+        let quaternion_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0;
+        let quaternion_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0;
+        let quaternion_z = ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0;
+        let quaternion_w = ((u16::from(datahex[7]) << 8) | u16::from(datahex[6])) as f32 / 32768.0;
+        [quaternion_x, quaternion_y, quaternion_z, quaternion_w]
     }
 }
