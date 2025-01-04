@@ -35,7 +35,6 @@ impl From<([f32; 3], [f32; 3], [f32; 3], [f32; 4])> for IMUData {
             quaternion_y: quaternion[1],
             quaternion_z: quaternion[2],
             quaternion_w: quaternion[3],
-
         }
     }
 }

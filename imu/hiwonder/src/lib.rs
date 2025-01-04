@@ -58,7 +58,6 @@ pub struct IMU {
     quaternion: [f32; 4],
 }
 
-
 impl IMU {
     pub fn new(interface: &str, baud_rate: u32) -> Result<Self, io::Error> {
         let port = serialport::new(interface, baud_rate)
@@ -99,7 +98,7 @@ impl IMU {
         self.write_command(&unlock_cmd)?;
         self.write_command(&config_cmd)?;
         self.write_command(&save_cmd)?;
-        
+
         Ok(())
     }
 
@@ -163,7 +162,7 @@ impl IMU {
                         }
                     }
                 }
-                // 11 bytes per packet for all, including the SOF. 
+                // 11 bytes per packet for all, including the SOF.
                 FrameState::Acc => {
                     if self.byte_num < 10 {
                         self.acc_data[self.byte_num - 2] = data;
