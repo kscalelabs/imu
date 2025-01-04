@@ -35,12 +35,12 @@ namespace_packages = false
 module = [
     "setuptools",
     "setuptools_rust",
+    "matplotlib",
+    "matplotlib.pyplot",
+    "imu.bindings",
 ]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-
-module = ["imu.bindings"]
 
 disable_error_code = ["no-untyped-def"]
 

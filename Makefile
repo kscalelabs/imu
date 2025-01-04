@@ -27,11 +27,21 @@ format-cpp:
 	@cmake-format -i $(shell find . -name 'CMakeLists.txt' -o -name '*.cmake')
 .PHONY: format-cpp
 
-static-checks:
+static-checks-python:
 	@black --diff --check $(py-files)
 	@ruff check $(py-files)
 	@mypy --install-types --non-interactive $(py-files)
+.PHONY: static-checks-python
+
+static-checks-rust:
+	@cargo clippy
+	@cargo fmt --check
 .PHONY: lint
+
+static-checks:
+	@$(MAKE) static-checks-python
+	@$(MAKE) static-checks-rust
+.PHONY: static-checks
 
 mypy-daemon:
 	@dmypy run -- $(py-files)
