@@ -5,7 +5,9 @@ use i2cdev::linux::LinuxI2CDevice;
 use log::error;
 pub use registers::OperationMode;
 use registers::{
-    AccelRegisters, CalibrationRegisters, ChipRegisters, ConfigRegisters, Constants, EulerRegisters, GravityRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters, QuaternionRegisters, RegisterPage, StatusRegisters
+    AccelRegisters, CalibrationRegisters, ChipRegisters, ConfigRegisters, Constants,
+    EulerRegisters, GravityRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters,
+    QuaternionRegisters, RegisterPage, StatusRegisters,
 };
 use std::thread;
 use std::time::Duration;
