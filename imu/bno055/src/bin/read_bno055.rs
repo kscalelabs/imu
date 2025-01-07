@@ -4,10 +4,10 @@ use std::{thread, time::Duration};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new BNO055 instance
     let mut imu = Bno055::new("/dev/i2c-1")?;
-    
+
     println!("Reading IMU data...");
     println!("Press Ctrl+C to exit");
-    
+
     loop {
         // Read quaternion data
         if let Ok(quat) = imu.get_quaternion() {
@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if let Ok(cal) = imu.get_calibration_status() {
             println!(
-                "Calibration - Sys: {}, Gyro: {}, Accel: {}, Mag: {}", 
+                "Calibration - Sys: {}, Gyro: {}, Accel: {}, Mag: {}",
                 (cal >> 6) & 0x03,
                 (cal >> 4) & 0x03,
                 (cal >> 2) & 0x03,

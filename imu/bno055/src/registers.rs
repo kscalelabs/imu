@@ -87,6 +87,9 @@ pub enum StatusRegisters {
     OprMode = 0x3D,
     PwrMode = 0x3E,
     SysTrigger = 0x3F,
+    TempSource = 0x40,
+    AxisMapConfig = 0x41,
+    AxisMapSign = 0x42,
 }
 
 #[derive(Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
@@ -114,7 +117,60 @@ pub enum OperationMode {
 }
 
 #[derive(Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
+pub enum GravityRegisters {
+    XLsb = 0x2E,
+    XMsb = 0x2F,
+    YLsb = 0x30,
+    YMsb = 0x31,
+    ZLsb = 0x32,
+    ZMsb = 0x33,
+}
+
+#[derive(Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
+pub enum RegisterPage {
+    Page0 = 0,
+    Page1 = 1,
+}
+
+#[derive(Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
+pub enum CalibrationRegisters {
+    AccOffsetXLsb = 0x55,
+    AccOffsetXMsb = 0x56,
+    AccOffsetYLsb = 0x57,
+    AccOffsetYMsb = 0x58,
+    AccOffsetZLsb = 0x59,
+    AccOffsetZMsb = 0x5A,
+
+    MagOffsetXLsb = 0x5B,
+    MagOffsetXMsb = 0x5C,
+    MagOffsetYLsb = 0x5D,
+    MagOffsetYMsb = 0x5E,
+    MagOffsetZLsb = 0x5F,
+    MagOffsetZMsb = 0x60,
+
+    GyrOffsetXLsb = 0x61,
+    GyrOffsetXMsb = 0x62,
+    GyrOffsetYLsb = 0x63,
+    GyrOffsetYMsb = 0x64,
+    GyrOffsetZLsb = 0x65,
+    GyrOffsetZMsb = 0x66,
+
+    AccRadiusLsb = 0x67,
+    AccRadiusMsb = 0x68,
+    MagRadiusLsb = 0x69,
+    MagRadiusMsb = 0x6A,
+}
+
+#[derive(Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
+pub enum ConfigRegisters {
+    AccConfig = 0x08,
+}
+
+#[derive(Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
 pub enum Constants {
     ChipId = 0xA0,
     DefaultI2cAddr = 0x28,
+    AlternateI2cAddr = 0x29,
+    SysTriggerRstSysBit = 0x20,
+    SysTriggerSelfTestBit = 0x01,
 }
