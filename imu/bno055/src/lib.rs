@@ -189,8 +189,14 @@ impl Bno055 {
     pub fn get_gravity_vector(&mut self) -> Result<Vector3, Error> {
         self.set_page(RegisterPage::Page0)?;
         let mut buf = [0u8; 6];
-        self.i2c
-            .smbus_read_i2c_block_data(GravityRegisters::XLsb as u8, 6, &mut buf)?;
+
+        // Read all gravity vector data at once
+        for i in 0..6 {
+            buf[i] = self
+                .i2c
+                .smbus_read_byte_data((GravityRegisters::XLsb as u8) + i as u8)?;
+        }
+
         let scale = 1.0 / 100.0;
         Ok(Vector3 {
             x: (LittleEndian::read_i16(&buf[0..2]) as f32) * scale,
