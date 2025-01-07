@@ -1,5 +1,6 @@
 mod registers;
-use registers::{ChipRegisters, Constants, EulerRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters, OperationMode, QuaternionRegisters, StatusRegisters};
+pub use registers::OperationMode;
+use registers::{ChipRegisters, Constants, EulerRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters, QuaternionRegisters, StatusRegisters};
 use std::thread;
 use std::time::Duration;
 use byteorder::{ByteOrder, LittleEndian};
