@@ -1,12 +1,12 @@
 mod registers;
 use registers::{ChipRegisters, StatusRegisters, QuaternionRegisters, EulerRegisters, 
-    LinearAccelRegisters, OperationMode, PowerMode, Constants};
+    LinearAccelRegisters, OperationMode, Constants};
 use std::thread;
 use std::time::Duration;
 use byteorder::{ByteOrder, LittleEndian};
 use i2cdev::core::I2CDevice;
 use i2cdev::linux::LinuxI2CDevice;
-use log::{error, warn};
+use log::error;
 
 #[derive(Debug)]
 pub enum Error {
@@ -49,7 +49,7 @@ pub struct Bno055 {
 
 impl Bno055 {
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
-        let i2c = LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr)?;
+        let i2c = LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr as u16)?;
         let mut bno = Bno055 { i2c };
         
         // Verify we're talking to the right chip
@@ -66,7 +66,7 @@ impl Bno055 {
 
     fn verify_chip_id(&mut self) -> Result<(), Error> {
         let chip_id = self.i2c.smbus_read_byte_data(ChipRegisters::ChipId as u8)?;
-        if chip_id != Constants::ChipId {
+        if Constants::ChipId as u8 != chip_id {
             error!("Invalid chip ID. Expected 0xA0, got {:#x}", chip_id);
             return Err(Error::InvalidChipId);
         }
@@ -85,7 +85,7 @@ impl Bno055 {
         // Read all quaternion data at once
         for i in 0..8 {
             buf[i] = self.i2c.smbus_read_byte_data(
-                (QuaternionRegisters::WLsb as u8) + i
+                (QuaternionRegisters::WLsb as u8) + i as u8
             )?;
         }
 
@@ -104,7 +104,7 @@ impl Bno055 {
         // Read all euler angle data at once
         for i in 0..6 {
             buf[i] = self.i2c.smbus_read_byte_data(
-                (EulerRegisters::HLsb as u8) + i
+                (EulerRegisters::HLsb as u8) + i as u8
             )?;
         }
     
@@ -123,7 +123,7 @@ impl Bno055 {
         // Read all linear acceleration data at once
         for i in 0..6 {
             buf[i] = self.i2c.smbus_read_byte_data(
-                (LinearAccelRegisters::XLsb as u8) + i
+                (LinearAccelRegisters::XLsb as u8) + i as u8
             )?;
         }
     
