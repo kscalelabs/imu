@@ -15,6 +15,25 @@ pub enum Error {
     CalibrationFailed,
 }
 
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::I2c(err) => write!(f, "I2C error: {}", err),
+            Error::InvalidChipId => write!(f, "Invalid chip ID"),
+            Error::CalibrationFailed => write!(f, "Calibration failed"),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::I2c(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
 impl From<i2cdev::linux::LinuxI2CError> for Error {
     fn from(err: i2cdev::linux::LinuxI2CError) -> Self {
         Error::I2c(err)
