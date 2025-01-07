@@ -5,9 +5,7 @@ use i2cdev::linux::LinuxI2CDevice;
 use log::error;
 pub use registers::OperationMode;
 use registers::{
-    CalibrationRegisters, ChipRegisters, ConfigRegisters, Constants, EulerRegisters,
-    GravityRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters, QuaternionRegisters,
-    RegisterPage, StatusRegisters,
+    AccelRegisters, CalibrationRegisters, ChipRegisters, ConfigRegisters, Constants, EulerRegisters, GravityRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters, QuaternionRegisters, RegisterPage, StatusRegisters
 };
 use std::thread;
 use std::time::Duration;
@@ -228,7 +226,7 @@ impl Bno055 {
         for i in 0..6 {
             buf[i] = self
                 .i2c
-                .smbus_read_byte_data((LinearAccelRegisters::XLsb as u8) + i as u8)?;
+                .smbus_read_byte_data((AccelRegisters::XLsb as u8) + i as u8)?;
         }
 
         // Convert to m/s² (scale factor is 100)
