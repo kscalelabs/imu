@@ -1,6 +1,5 @@
 mod registers;
-use registers::{ChipRegisters, StatusRegisters, QuaternionRegisters, EulerRegisters, 
-    LinearAccelRegisters, OperationMode, Constants};
+use registers::{ChipRegisters, Constants, EulerRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters, OperationMode, QuaternionRegisters, StatusRegisters};
 use std::thread;
 use std::time::Duration;
 use byteorder::{ByteOrder, LittleEndian};
@@ -160,5 +159,76 @@ impl Bno055 {
         // Wait for mode switch to complete
         thread::sleep(Duration::from_millis(20));
         Ok(())
+    }
+
+    pub fn get_accelerometer(&mut self) -> Result<Vector3, Error> {
+        let mut buf = [0u8; 6];
+        
+        // Read all accelerometer data at once
+        for i in 0..6 {
+            buf[i] = self.i2c.smbus_read_byte_data(
+                (LinearAccelRegisters::XLsb as u8) + i as u8
+            )?;
+        }
+    
+        // Convert to m/s² (scale factor is 100)
+        let scale = 1.0 / 100.0;
+        Ok(Vector3 {
+            x: (LittleEndian::read_i16(&buf[0..2]) as f32) * scale,
+            y: (LittleEndian::read_i16(&buf[2..4]) as f32) * scale,
+            z: (LittleEndian::read_i16(&buf[4..6]) as f32) * scale,
+        })
+    }
+
+    pub fn get_magnetometer(&mut self) -> Result<Vector3, Error> {
+        let mut buf = [0u8; 6];
+        
+        // Read all magnetometer data at once
+        for i in 0..6 {
+            buf[i] = self.i2c.smbus_read_byte_data(
+                (MagRegisters::XLsb as u8) + i as u8
+            )?;
+        }
+    
+        // Convert to microTesla
+        let scale = 1.0 / 16.0;
+        Ok(Vector3 {
+            x: (LittleEndian::read_i16(&buf[0..2]) as f32) * scale,
+            y: (LittleEndian::read_i16(&buf[2..4]) as f32) * scale,
+            z: (LittleEndian::read_i16(&buf[4..6]) as f32) * scale,
+        })
+    }
+
+    pub fn get_gyroscope(&mut self) -> Result<Vector3, Error> {
+        let mut buf = [0u8; 6];
+        
+        // Read all gyroscope data at once
+        for i in 0..6 {
+            buf[i] = self.i2c.smbus_read_byte_data(
+                (GyroRegisters::XLsb as u8) + i as u8
+            )?;
+        }
+    
+        // Convert to degrees per second
+        let scale = 1.0 / 16.0;
+        Ok(Vector3 {
+            x: (LittleEndian::read_i16(&buf[0..2]) as f32) * scale,
+            y: (LittleEndian::read_i16(&buf[2..4]) as f32) * scale,
+            z: (LittleEndian::read_i16(&buf[4..6]) as f32) * scale,
+        })
+    }
+
+    pub fn get_temperature(&mut self) -> Result<i8, Error> {
+        let temp = self.i2c.smbus_read_byte_data(
+            StatusRegisters::Temperature as u8
+        )? as i8;
+        Ok(temp)
+    }
+
+    pub fn get_calibration_status(&mut self) -> Result<u8, Error> {
+        let status = self.i2c.smbus_read_byte_data(
+            StatusRegisters::CalibStat as u8
+        )?;
+        Ok(status)
     }
 }
