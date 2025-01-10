@@ -5,14 +5,13 @@ use i2cdev::linux::LinuxI2CDevice;
 use log::{error, warn};
 pub use registers::OperationMode;
 use registers::{
-    AccelRegisters, ChipRegisters, Constants,
-    EulerRegisters, GravityRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters,
-    QuaternionRegisters, RegisterPage, StatusRegisters,
+    AccelRegisters, ChipRegisters, Constants, EulerRegisters, GravityRegisters, GyroRegisters,
+    LinearAccelRegisters, MagRegisters, QuaternionRegisters, RegisterPage, StatusRegisters,
 };
+use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-use std::sync::mpsc;
 
 #[derive(Debug)]
 pub enum Error {
@@ -450,45 +449,63 @@ impl Bno055Reader {
                 // Read all sensor data (same as before)
                 if let Ok(quat) = imu.get_quaternion() {
                     data_holder.quaternion = quat;
+                } else {
+                    warn!("Failed to get quaternion");
                 }
 
                 if let Ok(euler) = imu.get_euler_angles() {
                     data_holder.euler = euler;
+                } else {
+                    warn!("Failed to get euler angles");
                 }
 
                 if let Ok(accel) = imu.get_accelerometer() {
                     data_holder.accelerometer = accel;
+                } else {
+                    warn!("Failed to get accelerometer");
                 }
 
                 if let Ok(gyro) = imu.get_gyroscope() {
                     data_holder.gyroscope = gyro;
+                } else {
+                    warn!("Failed to get gyroscope");
                 }
 
                 if let Ok(mag) = imu.get_magnetometer() {
                     data_holder.magnetometer = mag;
+                } else {
+                    warn!("Failed to get magnetometer");
                 }
 
                 if let Ok(linear_accel) = imu.get_linear_acceleration() {
                     data_holder.linear_acceleration = linear_accel;
+                } else {
+                    warn!("Failed to get linear acceleration");
                 }
 
                 if let Ok(gravity) = imu.get_gravity_vector() {
                     data_holder.gravity = gravity;
+                } else {
+                    warn!("Failed to get gravity vector");
                 }
 
                 if let Ok(temp) = imu.get_temperature() {
                     data_holder.temperature = temp;
+                } else {
+                    warn!("Failed to get temperature");
                 }
 
                 if let Ok(status) = imu.get_calibration_status() {
                     data_holder.calibration_status = status;
+                } else {
+                    warn!("Failed to get calibration status");
                 }
 
                 // Update shared data
                 if let Ok(mut imu_data) = data.write() {
                     *imu_data = data_holder;
                 }
-                
+
                 // IMU sends data at 100 Hz
                 thread::sleep(Duration::from_millis(10));
             }
