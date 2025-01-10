@@ -3,7 +3,7 @@
 name = "linux_bno055"
 readme = "README.md"
 description = "Interface for interacting with BNO055 IMUs"
-version = "0.0.5"
+version = "0.0.6"
 authors.workspace = true
 edition.workspace = true
 repository.workspace = true
