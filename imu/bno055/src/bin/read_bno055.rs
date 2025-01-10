@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Reading IMU data...");
     println!("Press Ctrl+C to exit");
-    
+
     loop {
         if let Ok(data) = imu.get_data() {
             println!("Quaternion: {:?}", data.quaternion);

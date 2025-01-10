@@ -9,9 +9,9 @@ use registers::{
     EulerRegisters, GravityRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters,
     QuaternionRegisters, RegisterPage, StatusRegisters,
 };
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
 pub enum Error {
@@ -87,13 +87,42 @@ pub struct BnoData {
 impl Default for BnoData {
     fn default() -> Self {
         BnoData {
-            quaternion: Quaternion { w: 0.0, x: 0.0, y: 0.0, z: 0.0 },
-            euler: EulerAngles { roll: 0.0, pitch: 0.0, yaw: 0.0 },
-            accelerometer: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-            gyroscope: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-            magnetometer: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-            linear_acceleration: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-            gravity: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            quaternion: Quaternion {
+                w: 0.0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            euler: EulerAngles {
+                roll: 0.0,
+                pitch: 0.0,
+                yaw: 0.0,
+            },
+            accelerometer: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            gyroscope: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            magnetometer: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            linear_acceleration: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            gravity: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             temperature: 0,
             calibration_status: 0,
         }
@@ -351,14 +380,14 @@ impl Bno055Reader {
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
         let data = Arc::new(RwLock::new(BnoData::default()));
         let running = Arc::new(RwLock::new(true));
-        
+
         let reader = Bno055Reader {
             data: Arc::clone(&data),
             running: Arc::clone(&running),
         };
-        
+
         reader.start_reading_thread(i2c_bus)?;
-        
+
         Ok(reader)
     }
 
@@ -389,64 +418,64 @@ impl Bno055Reader {
 
                 if let Ok(quat) = imu.get_quaternion() {
                     data_holder.quaternion = quat;
-                }else{
+                } else {
                     warn!("Failed to get quaternion");
                 }
 
                 if let Ok(euler) = imu.get_euler_angles() {
                     data_holder.euler = euler;
-                }else{
+                } else {
                     warn!("Failed to get euler angles");
                 }
 
                 if let Ok(accel) = imu.get_accelerometer() {
                     data_holder.accelerometer = accel;
-                }else{
+                } else {
                     warn!("Failed to get accelerometer");
                 }
 
                 if let Ok(gyro) = imu.get_gyroscope() {
                     data_holder.gyroscope = gyro;
-                }else{
+                } else {
                     warn!("Failed to get gyroscope");
                 }
 
                 if let Ok(mag) = imu.get_magnetometer() {
                     data_holder.magnetometer = mag;
-                }else{
+                } else {
                     warn!("Failed to get magnetometer");
                 }
 
                 if let Ok(lin_accel) = imu.get_linear_acceleration() {
                     data_holder.linear_acceleration = lin_accel;
-                }else{
+                } else {
                     warn!("Failed to get linear acceleration");
                 }
 
                 if let Ok(gravity) = imu.get_gravity_vector() {
                     data_holder.gravity = gravity;
-                }else{
+                } else {
                     warn!("Failed to get gravity vector");
                 }
 
                 if let Ok(temp) = imu.get_temperature() {
                     data_holder.temperature = temp;
-                }else{
+                } else {
                     warn!("Failed to get temperature");
                 }
 
                 if let Ok(cal) = imu.get_calibration_status() {
                     data_holder.calibration_status = cal;
-                }else{
+                } else {
                     warn!("Failed to get calibration status");
                 }
 
                 if let Ok(mut imu_data) = data.write() {
                     *imu_data = data_holder;
-                }else{
+                } else {
                     warn!("Failed to write data");
                 }
-                
+
                 // Sleep at 100hz -> max update rate of the Bno055 imu
                 thread::sleep(Duration::from_millis(10));
             }
@@ -467,9 +496,7 @@ impl Bno055Reader {
     }
 
     pub fn stop(&self) -> Result<(), Error> {
-        let mut running = self.running
-            .write()
-            .map_err(|_| Error::WriteError)?;
+        let mut running = self.running.write().map_err(|_| Error::WriteError)?;
         *running = false;
         Ok(())
     }
