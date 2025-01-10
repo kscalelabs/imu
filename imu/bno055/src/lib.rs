@@ -365,15 +365,20 @@ impl Bno055Reader {
     fn start_reading_thread(&self, i2c_bus: &str) -> Result<(), Error> {
         let data = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);
-        
+        let i2c_bus = i2c_bus.to_string();
+
+        let (tx, rx) = std::sync::mpsc::channel();
+
         thread::spawn(move || {
-            let mut imu = match Bno055::new(i2c_bus) {
-                Ok(imu) => imu,
-                Err(e) => {
-                    error!("Failed to initialize BNO055: {}", e);
-                    return;
-                }
-            };
+            // Initialize IMU inside the thread and send result back
+            let init_result = Bno055::new(&i2c_bus);
+            if let Err(e) = init_result {
+                error!("Failed to initialize BNO055: {}", e);
+                let _ = tx.send(Err(e));
+                return;
+            }
+            let mut imu = init_result.unwrap();
+            let _ = tx.send(Ok(()));
 
             while let Ok(guard) = running.read() {
                 if !*guard {
@@ -446,8 +451,12 @@ impl Bno055Reader {
                 thread::sleep(Duration::from_millis(10));
             }
         });
-        
-        Ok(())
+
+        // Wait for initialization result before returning
+        match rx.recv().map_err(|_| Error::ReadError) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 
     pub fn get_data(&self) -> Result<BnoData, Error> {

@@ -1,4 +1,4 @@
-use linux_bno055::Bno055;
+use linux_bno055::Bno055Reader;
 use std::{thread, time::Duration};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
