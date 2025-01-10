@@ -5,7 +5,7 @@ use i2cdev::linux::LinuxI2CDevice;
 use log::{error, warn};
 pub use registers::OperationMode;
 use registers::{
-    AccelRegisters, CalibrationRegisters, ChipRegisters, ConfigRegisters, Constants,
+    AccelRegisters, ChipRegisters, Constants,
     EulerRegisters, GravityRegisters, GyroRegisters, LinearAccelRegisters, MagRegisters,
     QuaternionRegisters, RegisterPage, StatusRegisters,
 };
@@ -188,8 +188,8 @@ impl Bno055 {
         let mut buf = [0u8; 8];
 
         // Read all quaternion data at once
-        for i in 0..8 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .i2c
                 .smbus_read_byte_data((QuaternionRegisters::WLsb as u8) + i as u8)?;
         }
@@ -210,8 +210,8 @@ impl Bno055 {
         let mut buf = [0u8; 6];
 
         // Read all euler angle data at once
-        for i in 0..6 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .i2c
                 .smbus_read_byte_data((EulerRegisters::HLsb as u8) + i as u8)?;
         }
@@ -232,8 +232,8 @@ impl Bno055 {
         let mut buf = [0u8; 6];
 
         // Read all linear acceleration data at once
-        for i in 0..6 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .i2c
                 .smbus_read_byte_data((LinearAccelRegisters::XLsb as u8) + i as u8)?;
         }
@@ -254,8 +254,8 @@ impl Bno055 {
         let mut buf = [0u8; 6];
 
         // Read all gravity vector data at once
-        for i in 0..6 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .i2c
                 .smbus_read_byte_data((GravityRegisters::XLsb as u8) + i as u8)?;
         }
@@ -288,8 +288,8 @@ impl Bno055 {
         let mut buf = [0u8; 6];
 
         // Read all accelerometer data at once
-        for i in 0..6 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .i2c
                 .smbus_read_byte_data((AccelRegisters::XLsb as u8) + i as u8)?;
         }
@@ -310,8 +310,8 @@ impl Bno055 {
         let mut buf = [0u8; 6];
 
         // Read all magnetometer data at once
-        for i in 0..6 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .i2c
                 .smbus_read_byte_data((MagRegisters::XLsb as u8) + i as u8)?;
         }
@@ -332,8 +332,8 @@ impl Bno055 {
         let mut buf = [0u8; 6];
 
         // Read all gyroscope data at once
-        for i in 0..6 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .i2c
                 .smbus_read_byte_data((GyroRegisters::XLsb as u8) + i as u8)?;
         }
