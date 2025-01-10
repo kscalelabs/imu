@@ -2,7 +2,7 @@ mod registers;
 use byteorder::{ByteOrder, LittleEndian};
 use i2cdev::core::I2CDevice;
 use i2cdev::linux::LinuxI2CDevice;
-use log::error;
+use log::{error, warn};
 pub use registers::OperationMode;
 use registers::{
     AccelRegisters, CalibrationRegisters, ChipRegisters, ConfigRegisters, Constants,
@@ -11,12 +11,15 @@ use registers::{
 };
 use std::thread;
 use std::time::Duration;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
 pub enum Error {
     I2c(i2cdev::linux::LinuxI2CError),
     InvalidChipId,
     CalibrationFailed,
+    ReadError,
+    WriteError,
 }
 
 impl std::fmt::Display for Error {
@@ -25,6 +28,8 @@ impl std::fmt::Display for Error {
             Error::I2c(err) => write!(f, "I2C error: {}", err),
             Error::InvalidChipId => write!(f, "Invalid chip ID"),
             Error::CalibrationFailed => write!(f, "Calibration failed"),
+            Error::ReadError => write!(f, "Read error"),
+            Error::WriteError => write!(f, "Write error"),
         }
     }
 }
@@ -64,6 +69,35 @@ pub struct Vector3 {
     pub x: f32,
     pub y: f32,
     pub z: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BnoData {
+    pub quaternion: Quaternion,
+    pub euler: EulerAngles,
+    pub accelerometer: Vector3,
+    pub gyroscope: Vector3,
+    pub magnetometer: Vector3,
+    pub linear_acceleration: Vector3,
+    pub gravity: Vector3,
+    pub temperature: i8,
+    pub calibration_status: u8,
+}
+
+impl Default for BnoData {
+    fn default() -> Self {
+        BnoData {
+            quaternion: Quaternion { w: 0.0, x: 0.0, y: 0.0, z: 0.0 },
+            euler: EulerAngles { roll: 0.0, pitch: 0.0, yaw: 0.0 },
+            accelerometer: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            gyroscope: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            magnetometer: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            linear_acceleration: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            gravity: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            temperature: 0,
+            calibration_status: 0,
+        }
+    }
 }
 
 pub struct Bno055 {
@@ -305,5 +339,135 @@ impl Bno055 {
             .i2c
             .smbus_read_byte_data(StatusRegisters::CalibStat as u8)?;
         Ok(status)
+    }
+}
+
+pub struct Bno055Reader {
+    data: Arc<RwLock<BnoData>>,
+    running: Arc<RwLock<bool>>,
+}
+
+impl Bno055Reader {
+    pub fn new(i2c_bus: &str) -> Result<Self, Error> {
+        let data = Arc::new(RwLock::new(BnoData::default()));
+        let running = Arc::new(RwLock::new(true));
+        
+        let reader = Bno055Reader {
+            data: Arc::clone(&data),
+            running: Arc::clone(&running),
+        };
+        
+        reader.start_reading_thread(i2c_bus)?;
+        
+        Ok(reader)
+    }
+
+    fn start_reading_thread(&self, i2c_bus: &str) -> Result<(), Error> {
+        let data = Arc::clone(&self.data);
+        let running = Arc::clone(&self.running);
+        
+        thread::spawn(move || {
+            let mut imu = match Bno055::new(i2c_bus) {
+                Ok(imu) => imu,
+                Err(e) => {
+                    error!("Failed to initialize BNO055: {}", e);
+                    return;
+                }
+            };
+
+            while let Ok(guard) = running.read() {
+                if !*guard {
+                    break;
+                }
+
+                let mut data_holder = BnoData::default();
+
+                if let Ok(quat) = imu.get_quaternion() {
+                    data_holder.quaternion = quat;
+                }else{
+                    warn!("Failed to get quaternion");
+                }
+
+                if let Ok(euler) = imu.get_euler_angles() {
+                    data_holder.euler = euler;
+                }else{
+                    warn!("Failed to get euler angles");
+                }
+
+                if let Ok(accel) = imu.get_accelerometer() {
+                    data_holder.accelerometer = accel;
+                }else{
+                    warn!("Failed to get accelerometer");
+                }
+
+                if let Ok(gyro) = imu.get_gyroscope() {
+                    data_holder.gyroscope = gyro;
+                }else{
+                    warn!("Failed to get gyroscope");
+                }
+
+                if let Ok(mag) = imu.get_magnetometer() {
+                    data_holder.magnetometer = mag;
+                }else{
+                    warn!("Failed to get magnetometer");
+                }
+
+                if let Ok(lin_accel) = imu.get_linear_acceleration() {
+                    data_holder.linear_acceleration = lin_accel;
+                }else{
+                    warn!("Failed to get linear acceleration");
+                }
+
+                if let Ok(gravity) = imu.get_gravity_vector() {
+                    data_holder.gravity = gravity;
+                }else{
+                    warn!("Failed to get gravity vector");
+                }
+
+                if let Ok(temp) = imu.get_temperature() {
+                    data_holder.temperature = temp;
+                }else{
+                    warn!("Failed to get temperature");
+                }
+
+                if let Ok(cal) = imu.get_calibration_status() {
+                    data_holder.calibration_status = cal;
+                }else{
+                    warn!("Failed to get calibration status");
+                }
+
+                if let Ok(mut imu_data) = data.write() {
+                    *imu_data = data_holder;
+                }else{
+                    warn!("Failed to write data");
+                }
+                
+                // Sleep at 100hz -> max update rate of the Bno055 imu
+                thread::sleep(Duration::from_millis(10));
+            }
+        });
+        
+        Ok(())
+    }
+
+    pub fn get_data(&self) -> Result<BnoData, Error> {
+        self.data
+            .read()
+            .map(|data| *data)
+            .map_err(|_| Error::ReadError)
+    }
+
+    pub fn stop(&self) -> Result<(), Error> {
+        let mut running = self.running
+            .write()
+            .map_err(|_| Error::WriteError)?;
+        *running = false;
+        Ok(())
+    }
+}
+
+impl Drop for Bno055Reader {
+    fn drop(&mut self) {
+        let _ = self.stop();
     }
 }
