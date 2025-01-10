@@ -12,6 +12,7 @@ use registers::{
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+use std::sync::mpsc;
 
 #[derive(Debug)]
 pub enum Error {
@@ -373,6 +374,7 @@ impl Bno055 {
 
 pub struct Bno055Reader {
     data: Arc<RwLock<BnoData>>,
+    command_tx: mpsc::Sender<ImuCommand>,
     running: Arc<RwLock<bool>>,
 }
 
@@ -380,23 +382,29 @@ impl Bno055Reader {
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
         let data = Arc::new(RwLock::new(BnoData::default()));
         let running = Arc::new(RwLock::new(true));
+        let (command_tx, command_rx) = mpsc::channel();
 
         let reader = Bno055Reader {
             data: Arc::clone(&data),
+            command_tx,
             running: Arc::clone(&running),
         };
 
-        reader.start_reading_thread(i2c_bus)?;
+        reader.start_reading_thread(i2c_bus, command_rx)?;
 
         Ok(reader)
     }
 
-    fn start_reading_thread(&self, i2c_bus: &str) -> Result<(), Error> {
+    fn start_reading_thread(
+        &self,
+        i2c_bus: &str,
+        command_rx: mpsc::Receiver<ImuCommand>,
+    ) -> Result<(), Error> {
         let data = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);
         let i2c_bus = i2c_bus.to_string();
 
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, rx) = mpsc::channel();
 
         thread::spawn(move || {
             // Initialize IMU inside the thread and send result back
@@ -414,69 +422,74 @@ impl Bno055Reader {
                     break;
                 }
 
+                // Check for any pending commands
+                if let Ok(command) = command_rx.try_recv() {
+                    match command {
+                        ImuCommand::SetMode(mode) => {
+                            if let Err(e) = imu.set_mode(mode) {
+                                error!("Failed to set mode: {}", e);
+                            }
+                        }
+                        ImuCommand::Reset => {
+                            if let Err(e) = imu.reset() {
+                                error!("Failed to reset: {}", e);
+                            }
+                        }
+                        ImuCommand::Stop => {
+                            if let Ok(mut guard) = running.write() {
+                                *guard = false;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                // Read all sensor data
                 let mut data_holder = BnoData::default();
 
+                // Read all sensor data (same as before)
                 if let Ok(quat) = imu.get_quaternion() {
                     data_holder.quaternion = quat;
-                } else {
-                    warn!("Failed to get quaternion");
                 }
 
                 if let Ok(euler) = imu.get_euler_angles() {
                     data_holder.euler = euler;
-                } else {
-                    warn!("Failed to get euler angles");
                 }
 
                 if let Ok(accel) = imu.get_accelerometer() {
                     data_holder.accelerometer = accel;
-                } else {
-                    warn!("Failed to get accelerometer");
                 }
 
                 if let Ok(gyro) = imu.get_gyroscope() {
                     data_holder.gyroscope = gyro;
-                } else {
-                    warn!("Failed to get gyroscope");
                 }
 
                 if let Ok(mag) = imu.get_magnetometer() {
                     data_holder.magnetometer = mag;
-                } else {
-                    warn!("Failed to get magnetometer");
                 }
 
-                if let Ok(lin_accel) = imu.get_linear_acceleration() {
-                    data_holder.linear_acceleration = lin_accel;
-                } else {
-                    warn!("Failed to get linear acceleration");
+                if let Ok(linear_accel) = imu.get_linear_acceleration() {
+                    data_holder.linear_acceleration = linear_accel;
                 }
 
                 if let Ok(gravity) = imu.get_gravity_vector() {
                     data_holder.gravity = gravity;
-                } else {
-                    warn!("Failed to get gravity vector");
                 }
 
                 if let Ok(temp) = imu.get_temperature() {
                     data_holder.temperature = temp;
-                } else {
-                    warn!("Failed to get temperature");
                 }
 
-                if let Ok(cal) = imu.get_calibration_status() {
-                    data_holder.calibration_status = cal;
-                } else {
-                    warn!("Failed to get calibration status");
+                if let Ok(status) = imu.get_calibration_status() {
+                    data_holder.calibration_status = status;
                 }
 
+                // Update shared data
                 if let Ok(mut imu_data) = data.write() {
                     *imu_data = data_holder;
-                } else {
-                    warn!("Failed to write data");
                 }
-
-                // Sleep at 100hz -> max update rate of the Bno055 imu
+                
+                // IMU sends data at 100 Hz
                 thread::sleep(Duration::from_millis(10));
             }
         });
@@ -488,17 +501,29 @@ impl Bno055Reader {
         }
     }
 
+    pub fn set_mode(&self, mode: OperationMode) -> Result<(), Error> {
+        self.command_tx
+            .send(ImuCommand::SetMode(mode))
+            .map_err(|_| Error::WriteError)
+    }
+
+    pub fn reset(&self) -> Result<(), Error> {
+        self.command_tx
+            .send(ImuCommand::Reset)
+            .map_err(|_| Error::WriteError)
+    }
+
+    pub fn stop(&self) -> Result<(), Error> {
+        self.command_tx
+            .send(ImuCommand::Stop)
+            .map_err(|_| Error::WriteError)
+    }
+
     pub fn get_data(&self) -> Result<BnoData, Error> {
         self.data
             .read()
             .map(|data| *data)
             .map_err(|_| Error::ReadError)
-    }
-
-    pub fn stop(&self) -> Result<(), Error> {
-        let mut running = self.running.write().map_err(|_| Error::WriteError)?;
-        *running = false;
-        Ok(())
     }
 }
 
@@ -506,4 +531,11 @@ impl Drop for Bno055Reader {
     fn drop(&mut self) {
         let _ = self.stop();
     }
+}
+
+#[derive(Debug)]
+pub enum ImuCommand {
+    SetMode(OperationMode),
+    Reset,
+    Stop,
 }
