@@ -7,5 +7,5 @@ pub mod hiwonder {
 }
 
 pub mod bno055 {
-    pub use ::bno055::*;
+    pub use ::linux_bno055::*;
 }
