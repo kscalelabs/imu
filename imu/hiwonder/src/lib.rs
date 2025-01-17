@@ -1,5 +1,7 @@
 use serialport;
 use std::io::{self, Read};
+use std::sync::{mpsc, Arc, RwLock};
+use std::thread;
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -313,5 +315,148 @@ impl IMU {
         let quaternion_z = ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0;
         let quaternion_w = ((u16::from(datahex[7]) << 8) | u16::from(datahex[6])) as f32 / 32768.0;
         [quaternion_x, quaternion_y, quaternion_z, quaternion_w]
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ImuData {
+    pub accelerometer: [f32; 3],
+    pub gyroscope: [f32; 3],
+    pub angle: [f32; 3],
+    pub quaternion: [f32; 4],
+}
+
+impl Default for ImuData {
+    fn default() -> Self {
+        ImuData {
+            accelerometer: [0.0; 3],
+            gyroscope: [0.0; 3],
+            angle: [0.0; 3],
+            quaternion: [0.0; 4],
+        }
+    }
+}
+
+pub struct HiwonderReader {
+    data: Arc<RwLock<ImuData>>,
+    command_tx: mpsc::Sender<ImuCommand>,
+    running: Arc<RwLock<bool>>,
+}
+
+#[derive(Debug)]
+pub enum ImuCommand {
+    Reset,
+    Stop,
+}
+
+impl HiwonderReader {
+    pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
+        let data = Arc::new(RwLock::new(ImuData::default()));
+        let running = Arc::new(RwLock::new(true));
+        let (command_tx, command_rx) = mpsc::channel();
+
+        let reader = HiwonderReader {
+            data: Arc::clone(&data),
+            command_tx,
+            running: Arc::clone(&running),
+        };
+
+        reader.start_reading_thread(interface, baud_rate, command_rx)?;
+
+        Ok(reader)
+    }
+
+    fn start_reading_thread(
+        &self,
+        interface: &str,
+        baud_rate: u32,
+        command_rx: mpsc::Receiver<ImuCommand>,
+    ) -> Result<(), ImuError> {
+        let data = Arc::clone(&self.data);
+        let running = Arc::clone(&self.running);
+        let interface = interface.to_string();
+
+        let (tx, rx) = mpsc::channel();
+
+        thread::spawn(move || {
+            // Initialize IMU inside the thread and send result back
+            let init_result = IMU::new(&interface, baud_rate);
+            if let Err(e) = init_result {
+                let _ = tx.send(Err(e));
+                return;
+            }
+            let mut imu = init_result.unwrap();
+            let _ = tx.send(Ok(()));
+
+            while let Ok(guard) = running.read() {
+                if !*guard {
+                    break;
+                }
+
+                // Check for any pending commands
+                if let Ok(command) = command_rx.try_recv() {
+                    match command {
+                        ImuCommand::Reset => {
+                            if let Err(e) = imu.initialize() {
+                                eprintln!("Failed to reset IMU: {}", e);
+                            }
+                        }
+                        ImuCommand::Stop => {
+                            if let Ok(mut guard) = running.write() {
+                                *guard = false;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                // Read IMU data
+                match imu.read_data() {
+                    Ok(Some((acc, gyro, angle, quat))) => {
+                        if let Ok(mut imu_data) = data.write() {
+                            imu_data.accelerometer = acc;
+                            imu_data.gyroscope = gyro;
+                            imu_data.angle = angle;
+                            imu_data.quaternion = quat;
+                        }
+                    }
+                    Ok(None) => (), // No complete data available yet
+                    Err(e) => eprintln!("Error reading from IMU: {}", e),
+                }
+
+                // Sleep for a short duration to prevent busy waiting
+                thread::sleep(Duration::from_millis(1));
+            }
+        });
+
+        // Wait for initialization result before returning
+        rx.recv()
+            .map_err(|_| ImuError::InvalidPacket)?
+            .map_err(|e| e)
+    }
+
+    pub fn reset(&self) -> Result<(), ImuError> {
+        self.command_tx
+            .send(ImuCommand::Reset)
+            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+    }
+
+    pub fn stop(&self) -> Result<(), ImuError> {
+        self.command_tx
+            .send(ImuCommand::Stop)
+            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+    }
+
+    pub fn get_data(&self) -> Result<ImuData, ImuError> {
+        self.data
+            .read()
+            .map(|data| data.clone())
+            .map_err(|_| ImuError::ReadError(io::Error::new(io::ErrorKind::Other, "Lock error")))
+    }
+}
+
+impl Drop for HiwonderReader {
+    fn drop(&mut self) {
+        let _ = self.stop();
     }
 }
