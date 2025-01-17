@@ -12,12 +12,11 @@ def main() -> None:
     try:
         while True:
             if data := imu.read_data():
-                acc, gyro, angle, quaternion = data
                 print("\033[2J\033[H")  # Clear screen
-                print(f"Acceleration (m/s²): {acc}")
-                print(f"Gyroscope (deg/s):  {gyro}")
-                print(f"Angle (degrees):     {angle}")
-                print(f"Quaternion: {quaternion}")
+                print(f"Acceleration (m/s²): {data.accelerometer}")
+                print(f"Gyroscope (deg/s):  {data.gyroscope}")
+                print(f"Angle (degrees):     {data.angle}")
+                print(f"Quaternion: {data.quaternion}")
                 time.sleep(0.1)  # Add small delay to make output readable
     except KeyboardInterrupt:
         print("\nExiting...")
