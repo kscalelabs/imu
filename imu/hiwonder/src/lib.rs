@@ -425,7 +425,7 @@ impl HiwonderReader {
                 }
 
                 // Sleep for a short duration to prevent busy waiting
-                thread::sleep(Duration::from_millis(1));
+                thread::sleep(Duration::from_millis(5));
             }
         });
 
