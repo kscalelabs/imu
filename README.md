@@ -8,5 +8,6 @@ See the documentation [here](https://docs.kscale.dev/robot/imu) for instructions
 
 ## Currently Supported IMUs
 
+- [BNO055](./imu/bno055/README.md)
 - [Hexmove](./imu/hexmove/README.md)
 - [Hiwonder](./imu/hiwonder/README.md)

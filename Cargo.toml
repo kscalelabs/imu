@@ -5,11 +5,12 @@ members = [
     "imu/bindings",
     "imu/hexmove",
     "imu/hiwonder",
+    "imu/bno055",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.7"
+version = "0.2.0"
 authors = ["Wesley Maa <wesley@kscale.dev>"]
 edition = "2021"
 description = "IMU package"

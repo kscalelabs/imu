@@ -13,7 +13,8 @@ name = "imu"
 crate-type = ["rlib"]
 
 [dependencies]
-hexmove = { path = "./hexmove", version = "0.1.2" }
-hiwonder = { path = "./hiwonder", version = "0.1.0" }
+hexmove = "0.1.6"
+hiwonder = "0.1"
+linux_bno055 = "0.0.6"
 socketcan = "3.3.0"
 log = "0.4"

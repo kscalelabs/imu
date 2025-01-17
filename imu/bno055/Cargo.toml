@@ -1,0 +1,24 @@
+[package]
+
+name = "linux_bno055"
+readme = "README.md"
+description = "Interface for interacting with BNO055 IMUs"
+version = "0.0.6"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lib]
+
+name = "linux_bno055"
+crate-type = ["rlib"]
+
+[dependencies]
+
+i2cdev = "0.6"
+byteorder = "1.5"
+bitflags = "2.6"
+log = "0.4"
+num-derive = "0.4"
+num-traits = "0.2"
