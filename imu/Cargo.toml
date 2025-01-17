@@ -14,7 +14,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 hexmove = "0.1.6"
-hiwonder = "0.2.0"
+hiwonder = "0.2.2"
 linux_bno055 = "0.0.6"
 socketcan = "3.3.0"
 log = "0.4"
