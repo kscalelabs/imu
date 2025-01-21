@@ -15,6 +15,6 @@ name = "hexmove"
 crate-type = ["rlib"]
 
 [dependencies]
-imu = { path = "../imu" }
+imu = { path = ".." }
 socketcan = "3.3.0"
 log = "0.4"
