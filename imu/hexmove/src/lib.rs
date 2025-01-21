@@ -6,7 +6,7 @@ use imu::data::{IMUData, Quaternion, EulerAngles, Vector3}; // Import the necess
 
 pub struct ImuReader {
     socket: Arc<CanSocket>,
-    data: Arc<RwLock<IMUData>>, // Use IMUData instead of ImuData
+    data: Arc<RwLock<IMUData>>,
     running: Arc<RwLock<bool>>,
 }
 
@@ -213,7 +213,7 @@ impl ImuReader {
 
     pub fn get_data(&self) -> Result<IMUData, String> {
         let data = self.data.read().map_err(|e| format!("Failed to read data: {}", e))?;
-        Ok(*data) // Return a copy of the IMUData
+        Ok(*data)
     }
 
     pub fn get_angles(&self) -> Result<(f32, f32, f32), String> {
