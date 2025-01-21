@@ -39,12 +39,12 @@ def main() -> None:
             data = imu_reader.get_data()
 
             # Append data to deques
-            angles_x.append(data.x_angle)
-            angles_y.append(data.y_angle)
-            angles_z.append(data.z_angle)
-            velocities_x.append(data.x_velocity)
-            velocities_y.append(data.y_velocity)
-            velocities_z.append(data.z_velocity)
+            angles_x.append(data.euler.roll)
+            angles_y.append(data.euler.pitch)
+            angles_z.append(data.euler.yaw)
+            velocities_x.append(data.gyroscope.x)
+            velocities_y.append(data.gyroscope.y)
+            velocities_z.append(data.gyroscope.z)
 
             angles_x.pop(0)
             angles_y.pop(0)

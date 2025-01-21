@@ -12,6 +12,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+use imu::data::{IMUData, Vector3, EulerAngles, Quaternion};
 
 #[derive(Debug)]
 pub enum Error {
@@ -46,86 +47,6 @@ impl std::error::Error for Error {
 impl From<i2cdev::linux::LinuxI2CError> for Error {
     fn from(err: i2cdev::linux::LinuxI2CError) -> Self {
         Error::I2c(err)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Quaternion {
-    pub w: f32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct EulerAngles {
-    pub roll: f32,  // x-axis rotation
-    pub pitch: f32, // y-axis rotation
-    pub yaw: f32,   // z-axis rotation
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Vector3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct BnoData {
-    pub quaternion: Quaternion,
-    pub euler: EulerAngles,
-    pub accelerometer: Vector3,
-    pub gyroscope: Vector3,
-    pub magnetometer: Vector3,
-    pub linear_acceleration: Vector3,
-    pub gravity: Vector3,
-    pub temperature: i8,
-    pub calibration_status: u8,
-}
-
-impl Default for BnoData {
-    fn default() -> Self {
-        BnoData {
-            quaternion: Quaternion {
-                w: 0.0,
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            euler: EulerAngles {
-                roll: 0.0,
-                pitch: 0.0,
-                yaw: 0.0,
-            },
-            accelerometer: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            gyroscope: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            magnetometer: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            linear_acceleration: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            gravity: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            temperature: 0,
-            calibration_status: 0,
-        }
     }
 }
 
@@ -372,14 +293,14 @@ impl Bno055 {
 }
 
 pub struct Bno055Reader {
-    data: Arc<RwLock<BnoData>>,
+    data: Arc<RwLock<IMUData>>,
     command_tx: mpsc::Sender<ImuCommand>,
     running: Arc<RwLock<bool>>,
 }
 
 impl Bno055Reader {
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
-        let data = Arc::new(RwLock::new(BnoData::default()));
+        let data = Arc::new(RwLock::new(IMUData::default()));
         let running = Arc::new(RwLock::new(true));
         let (command_tx, command_rx) = mpsc::channel();
 
@@ -444,7 +365,7 @@ impl Bno055Reader {
                 }
 
                 // Read all sensor data
-                let mut data_holder = BnoData::default();
+                let mut data_holder = IMUData::default();
 
                 // Read all sensor data (same as before)
                 if let Ok(quat) = imu.get_quaternion() {
@@ -536,7 +457,7 @@ impl Bno055Reader {
             .map_err(|_| Error::WriteError)
     }
 
-    pub fn get_data(&self) -> Result<BnoData, Error> {
+    pub fn get_data(&self) -> Result<IMUData, Error> {
         self.data
             .read()
             .map(|data| *data)

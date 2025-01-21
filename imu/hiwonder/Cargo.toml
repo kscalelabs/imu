@@ -9,6 +9,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
+imu = { path = "../imu" }
 serialport = "4.2.0"
 
 [lib]
