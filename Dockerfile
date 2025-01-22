@@ -35,11 +35,16 @@ WORKDIR /app
 
 # Create a non-root user
 RUN useradd -m -u 1000 builder
-USER builder
 
-# Create cache directories for the builder user
+# Create cache directories with correct permissions
 RUN mkdir -p /home/builder/.cache/black \
     && mkdir -p /home/builder/.cache/ruff \
-    && mkdir -p /home/builder/.mypy_cache
+    && mkdir -p /home/builder/.mypy_cache \
+    && mkdir -p /app/.ruff_cache \
+    && chown -R builder:builder /home/builder/.cache \
+    && chown -R builder:builder /home/builder/.mypy_cache \
+    && chown -R builder:builder /app/.ruff_cache
+
+USER builder
 
 CMD ["/bin/bash"]
