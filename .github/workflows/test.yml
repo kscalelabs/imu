@@ -42,10 +42,10 @@ jobs:
           path: |
             ${{ env.pythonLocation }}
             .mypy_cache/
-          key: python-requirements-${{ env.pythonLocation }}-${{ github.event.pull_request.base.sha || github.sha }}
+          key: new-python-requirements-${{ env.pythonLocation }}-${{ github.event.pull_request.base.sha || github.sha }}
           restore-keys: |
-            python-requirements-${{ env.pythonLocation }}
-            python-requirements-
+            new-python-requirements-${{ env.pythonLocation }}
+            new-python-requirements-
 
       - name: Install package
         run: |
