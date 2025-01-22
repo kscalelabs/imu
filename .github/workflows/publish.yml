@@ -6,15 +6,15 @@ on:
   workflow_dispatch:
     inputs:
       publish_imu:
-        description: 'Publish imu package'
+        description: "Publish imu package"
         type: boolean
         default: false
       publish_hexmove:
-        description: 'Publish hexmove package'
+        description: "Publish hexmove package"
         type: boolean
         default: false
       publish_hiwonder:
-        description: 'Publish hiwonder package'
+        description: "Publish hiwonder package"
         type: boolean
         default: false
 
@@ -46,52 +46,40 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install cibuildwheel
-        shell: bash
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
           platforms: all
 
-      - name: Build package
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        run: |
+          docker buildx build --platform linux/${{ matrix.arch }} \
+            -t imu-builder:${{ matrix.arch }} \
+            --load .
+
+      - name: Build wheels
         env:
           CIBW_SKIP: ${{ matrix.skip }}
           CIBW_ARCHS_LINUX: ${{ matrix.arch }}
-          CIBW_BEFORE_ALL_LINUX: |
-            yum install -y libudev-devel pkgconfig python3-devel python3-pip python3-wheel
-          CIBW_BEFORE_BUILD: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            export PATH="$HOME/.cargo/bin:$PATH"
-            pip install setuptools-rust
-          CIBW_ENVIRONMENT: |
-            PATH="/usr/local/bin:$HOME/.cargo/bin:$PATH"
-            CARGO_NET_GIT_FETCH_WITH_CLI=true
         run: |
-          cibuildwheel --output-dir dist
+          mkdir -p dist
+          docker run --rm \
+            -v $(pwd):/app \
+            -v $(pwd)/dist:/app/dist \
+            imu-builder:${{ matrix.arch }} \
+            python3.11 -m build --wheel --outdir dist
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v3
         with:
           name: wheels-${{ matrix.arch }}
-          path: |
-            dist/*.whl
+          path: dist/*.whl
 
   build-source-dist:
-    name: Build and publish Python package (source distribution)
+    name: Build source distribution
     timeout-minutes: 10
     runs-on: ubuntu-latest
 
@@ -99,32 +87,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install build
-        shell: bash
+      - name: Build Docker image
+        run: make docker-build
 
       - name: Build source distribution
-        run: |
-          python -m build --sdist --outdir dist
+        run: make docker-build-sdist
 
       - name: Upload source distribution
         uses: actions/upload-artifact@v3
         with:
           name: source-dist
-          path: |
-            dist/*.tar.gz
+          path: dist/*.tar.gz
 
   publish-wheels:
     needs: [build-wheels, build-source-dist]
@@ -159,10 +135,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        run: make docker-build
 
       - name: Install dependencies
         run: |
