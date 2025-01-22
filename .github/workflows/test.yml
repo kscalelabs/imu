@@ -43,7 +43,6 @@ jobs:
             ~/.cache/black
             ~/.cache/ruff
             ~/.mypy_cache
-            .ruff_cache
           key: ${{ runner.os }}-python-tools-${{ hashFiles('setup.py', 'pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-python-tools-
@@ -65,13 +64,12 @@ jobs:
 
       - name: Run static checks
         run: |
-          mkdir -p ~/.cache/black ~/.cache/ruff ~/.mypy_cache .ruff_cache
+          mkdir -p ~/.cache/black ~/.cache/ruff ~/.mypy_cache
           docker run --rm \
             -v $(pwd):/app \
             -v ~/.cache/black:/home/builder/.cache/black \
             -v ~/.cache/ruff:/home/builder/.cache/ruff \
             -v ~/.mypy_cache:/home/builder/.mypy_cache \
-            -v $(pwd)/.ruff_cache:/app/.ruff_cache \
             imu-builder:latest \
             make static-checks
 
