@@ -32,7 +32,7 @@ impl ImuReader {
     }
 
     fn start_reading_thread(&self, serial_number: u8, model: u8) {
-        let data = Arc::clone(&self.data);
+        let data: Arc<RwLock<IMUData>> = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);
         let socket = Arc::clone(&self.socket);
 
