@@ -54,11 +54,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-${{ matrix.arch }}-
+            ${{ runner.os }}-buildx-
+
       - name: Build Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: imu-builder:${{ matrix.arch }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # Temp fix for https://github.com/docker/build-push-action/issues/252
+      - name: Move cache
         run: |
-          docker buildx build --platform linux/${{ matrix.arch }} \
-            -t imu-builder:${{ matrix.arch }} \
-            --load .
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Build wheels
         env:
@@ -90,8 +109,28 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-sdist-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-sdist-
+            ${{ runner.os }}-buildx-
+
       - name: Build Docker image
-        run: make docker-build
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          load: true
+          tags: imu-builder:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Build source distribution
         run: make docker-build-sdist
@@ -138,44 +177,74 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Build Docker image
-        run: make docker-build
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-rust-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-rust-
+            ${{ runner.os }}-buildx-
 
-      - name: Install dependencies
+      - name: Build Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          load: true
+          tags: imu-builder:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Move cache
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Cache Cargo registry
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-registry
-
-      - name: Cache Cargo index
-        uses: actions/cache@v2
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index
-          restore-keys: |
-            ${{ runner.os }}-cargo-index
+            ${{ runner.os }}-cargo-
 
       - name: Publish imu package to crates.io
         if: ${{ inputs.publish_imu }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p imu
+        run: |
+          docker run --rm \
+            -v $(pwd):/app \
+            -v ~/.cargo/registry:/usr/local/cargo/registry \
+            -v ~/.cargo/git:/usr/local/cargo/git \
+            -e CARGO_REGISTRY_TOKEN \
+            imu-builder:latest \
+            cargo publish -p imu
 
       - name: Publish hexmove package to crates.io
         if: ${{ inputs.publish_hexmove }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p hexmove
+        run: |
+          docker run --rm \
+            -v $(pwd):/app \
+            -v ~/.cargo/registry:/usr/local/cargo/registry \
+            -v ~/.cargo/git:/usr/local/cargo/git \
+            -e CARGO_REGISTRY_TOKEN \
+            imu-builder:latest \
+            cargo publish -p hexmove
 
       - name: Publish hiwonder package to crates.io
         if: ${{ inputs.publish_hiwonder }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p hiwonder
+        run: |
+          docker run --rm \
+            -v $(pwd):/app \
+            -v ~/.cargo/registry:/usr/local/cargo/registry \
+            -v ~/.cargo/git:/usr/local/cargo/git \
+            -e CARGO_REGISTRY_TOKEN \
+            imu-builder:latest \
+            cargo publish -p hiwonder

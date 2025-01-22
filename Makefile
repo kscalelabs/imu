@@ -28,9 +28,9 @@ format-cpp:
 .PHONY: format-cpp
 
 static-checks-python:
-	@black --diff --check $(py-files)
-	@ruff check $(py-files)
-	@mypy --install-types --non-interactive $(py-files)
+	@python3.11 -m black --diff --check $(py-files)
+	@python3.11 -m ruff check $(py-files)
+	@python3.11 -m mypy --install-types --non-interactive $(py-files)
 .PHONY: static-checks-python
 
 static-checks-rust:

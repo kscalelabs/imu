@@ -22,14 +22,24 @@ RUN apt-get update && apt-get install -y \
 # Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
+# Copy requirements files
+COPY imu/requirements.txt /tmp/requirements.txt
+COPY imu/requirements-dev.txt /tmp/requirements-dev.txt
+
 # Install Python dependencies
 RUN python3.11 -m pip install --upgrade pip && \
-    python3.11 -m pip install build wheel setuptools-rust
+    python3.11 -m pip install build wheel setuptools-rust && \
+    python3.11 -m pip install -r /tmp/requirements.txt -r /tmp/requirements-dev.txt
 
 WORKDIR /app
 
 # Create a non-root user
 RUN useradd -m -u 1000 builder
 USER builder
+
+# Create cache directories for the builder user
+RUN mkdir -p /home/builder/.cache/black \
+    && mkdir -p /home/builder/.cache/ruff \
+    && mkdir -p /home/builder/.mypy_cache
 
 CMD ["/bin/bash"]
