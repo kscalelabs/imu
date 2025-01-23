@@ -2,30 +2,11 @@ use log::error;
 use socketcan::{CanFrame, CanSocket, EmbeddedFrame, ExtendedId, Id, Socket};
 use std::sync::{Arc, RwLock};
 use std::thread;
-
-#[derive(Debug, Default, Clone)]
-pub struct ImuData {
-    pub x_angle: f32,
-    pub y_angle: f32,
-    pub z_angle: f32,
-    pub x_velocity: f32,
-    pub y_velocity: f32,
-    pub z_velocity: f32,
-    pub x_angle_offset: f32,
-    pub y_angle_offset: f32,
-    pub z_angle_offset: f32,
-    pub accel_x: f32,
-    pub accel_y: f32,
-    pub accel_z: f32,
-    pub qw: f32,
-    pub qx: f32,
-    pub qy: f32,
-    pub qz: f32,
-}
+use imu::data::{IMUData, Quaternion, EulerAngles, Vector3}; // Import the necessary structs
 
 pub struct ImuReader {
     socket: Arc<CanSocket>,
-    data: Arc<RwLock<ImuData>>,
+    data: Arc<RwLock<IMUData>>,
     running: Arc<RwLock<bool>>,
 }
 
@@ -36,7 +17,7 @@ impl ImuReader {
         model: u8,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let socket = Arc::new(CanSocket::open(interface)?);
-        let data = Arc::new(RwLock::new(ImuData::default()));
+        let data = Arc::new(RwLock::new(IMUData::default()));
         let running = Arc::new(RwLock::new(true));
 
         let imu_reader = ImuReader {
@@ -51,7 +32,7 @@ impl ImuReader {
     }
 
     fn start_reading_thread(&self, serial_number: u8, model: u8) {
-        let data = Arc::clone(&self.data);
+        let data: Arc<RwLock<IMUData>> = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);
         let socket = Arc::clone(&self.socket);
 
@@ -78,20 +59,18 @@ impl ImuReader {
                         // IMU angle data
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB1) {
                             if id == Id::Extended(ext_id) {
-                                let x_angle =
+                                let roll =
                                     i16::from_le_bytes([received_data[0], received_data[1]]) as f32
                                         * 0.01;
-                                let y_angle =
+                                let pitch =
                                     i16::from_le_bytes([received_data[2], received_data[3]]) as f32
                                         * 0.01;
-                                let z_angle =
+                                let yaw =
                                     i16::from_le_bytes([received_data[4], received_data[5]]) as f32
                                         * 0.01;
 
                                 if let Ok(mut imu_data) = data.write() {
-                                    imu_data.x_angle = x_angle;
-                                    imu_data.y_angle = y_angle;
-                                    imu_data.z_angle = z_angle;
+                                    imu_data.euler = EulerAngles { roll, pitch, yaw };
                                 } else {
                                     error!("Failed to write to IMU data");
                                 }
@@ -114,9 +93,11 @@ impl ImuReader {
                                         * 0.01;
 
                                 if let Ok(mut imu_data) = data.write() {
-                                    imu_data.x_velocity = x_velocity;
-                                    imu_data.y_velocity = y_velocity;
-                                    imu_data.z_velocity = z_velocity;
+                                    imu_data.gyroscope = Vector3 {
+                                        x: x_velocity,
+                                        y: y_velocity,
+                                        z: z_velocity,
+                                    };
                                 } else {
                                     error!("Failed to write to IMU data");
                                 }
@@ -139,9 +120,11 @@ impl ImuReader {
                                         * 0.01;
 
                                 if let Ok(mut imu_data) = data.write() {
-                                    imu_data.accel_x = accel_x;
-                                    imu_data.accel_y = accel_y;
-                                    imu_data.accel_z = accel_z;
+                                    imu_data.accelerometer = Vector3 {
+                                        x: accel_x,
+                                        y: accel_y,
+                                        z: accel_z,
+                                    };
                                 } else {
                                     error!("Failed to write to IMU data");
                                 }
@@ -172,8 +155,8 @@ impl ImuReader {
                                 let qx = f32::from_le_bytes(qx_bytes);
 
                                 if let Ok(mut imu_data) = data.write() {
-                                    imu_data.qw = qw;
-                                    imu_data.qx = qx;
+                                    imu_data.quaternion.w = qw;
+                                    imu_data.quaternion.x = qx;
                                 } else {
                                     error!("Failed to write quaternion data to IMU data");
                                 }
@@ -204,8 +187,8 @@ impl ImuReader {
                                 let qz = f32::from_le_bytes(qz_bytes);
 
                                 if let Ok(mut imu_data) = data.write() {
-                                    imu_data.qy = qy;
-                                    imu_data.qz = qz;
+                                    imu_data.quaternion.y = qy;
+                                    imu_data.quaternion.z = qz;
                                 } else {
                                     error!("Failed to write quaternion data to IMU data");
                                 }
@@ -228,36 +211,33 @@ impl ImuReader {
         });
     }
 
-    pub fn get_data(&self) -> Result<ImuData, String> {
-        let imu_data = self
-            .data
-            .read()
-            .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
-        Ok(imu_data.clone())
+    pub fn get_data(&self) -> Result<IMUData, String> {
+        let data = self.data.read().map_err(|e| format!("Failed to read data: {}", e))?;
+        Ok(*data)
     }
 
     pub fn get_angles(&self) -> Result<(f32, f32, f32), String> {
         let data = self.get_data()?;
         Ok((
-            data.x_angle - data.x_angle_offset,
-            data.y_angle - data.y_angle_offset,
-            data.z_angle - data.z_angle_offset,
+            data.euler.roll - data.euler_offset.roll,
+            data.euler.pitch - data.euler_offset.pitch,
+            data.euler.yaw - data.euler_offset.yaw,
         ))
     }
 
     pub fn get_velocities(&self) -> Result<(f32, f32, f32), String> {
         let data = self.get_data()?;
-        Ok((data.x_velocity, data.y_velocity, data.z_velocity))
+        Ok((data.gyroscope.x, data.gyroscope.y, data.gyroscope.z))
     }
 
     pub fn get_accelerations(&self) -> Result<(f32, f32, f32), String> {
         let data = self.get_data()?;
-        Ok((data.accel_x, data.accel_y, data.accel_z))
+        Ok((data.accelerometer.x, data.accelerometer.y, data.accelerometer.z))
     }
 
     pub fn get_quaternion(&self) -> Result<(f32, f32, f32, f32), String> {
         let data = self.get_data()?;
-        Ok((data.qw, data.qx, data.qy, data.qz))
+        Ok((data.quaternion.w, data.quaternion.x, data.quaternion.y, data.quaternion.z))
     }
 
     pub fn stop(&self) -> Result<(), String> {
@@ -288,9 +268,9 @@ impl ImuReader {
             // Collect samples
             for _ in 0..samples {
                 let data = self.get_data()?;
-                x_samples.push(data.x_angle);
-                y_samples.push(data.y_angle);
-                z_samples.push(data.z_angle);
+                x_samples.push(data.euler.roll);
+                y_samples.push(data.euler.pitch);
+                z_samples.push(data.euler.yaw);
                 thread::sleep(std::time::Duration::from_millis(10));
             }
 
@@ -320,9 +300,9 @@ impl ImuReader {
                 .write()
                 .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
 
-            imu_data.x_angle_offset = x_offset;
-            imu_data.y_angle_offset = y_offset;
-            imu_data.z_angle_offset = z_offset;
+            imu_data.euler_offset.roll = x_offset;
+            imu_data.euler_offset.pitch = y_offset;
+            imu_data.euler_offset.yaw = z_offset;
 
             return Ok(());
         }

@@ -1,6 +1,7 @@
 use serialport;
 use std::io::{self, Read};
 use std::time::Duration;
+use imu::data::{IMUData, Vector3, EulerAngles, Quaternion};
 
 #[derive(Debug)]
 pub enum ImuError {
@@ -44,7 +45,7 @@ enum FrameState {
     Quaternion,
 }
 
-pub struct IMU {
+pub struct HiWonderIMU {
     port: Box<dyn serialport::SerialPort>,
     frame_state: FrameState,
     byte_num: usize,
@@ -53,19 +54,16 @@ pub struct IMU {
     gyro_data: [u8; 8],
     angle_data: [u8; 8],
     quaternion_data: [u8; 8],
-    acc: [f32; 3],
-    gyro: [f32; 3],
-    angle: [f32; 3],
-    quaternion: [f32; 4],
+    imu_data: IMUData, // Use accelerometer, gyroscope, eule angle, and quaternion data
 }
 
-impl IMU {
+impl HiWonderIMU {
     pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
         let port = serialport::new(interface, baud_rate)
             .timeout(Duration::from_millis(500))
             .open()?;
 
-        let mut imu = IMU {
+        let mut imu = HiWonderIMU {
             port: port,
             frame_state: FrameState::Idle,
             byte_num: 0,
@@ -74,10 +72,7 @@ impl IMU {
             gyro_data: [0u8; 8],
             angle_data: [0u8; 8],
             quaternion_data: [0u8; 8],
-            acc: [0.0; 3],
-            gyro: [0.0; 3],
-            angle: [0.0; 3],
-            quaternion: [0.0; 4],
+            imu_data: IMUData::default(),
         };
 
         imu.initialize()?;
@@ -116,14 +111,14 @@ impl IMU {
         Ok(())
     }
 
-    pub fn read_data(&mut self) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3], [f32; 4])>> {
+    pub fn read_data(&mut self) -> io::Result<Option<IMUData>> {
         let mut buffer = vec![0; 1024];
         match self.port.read(&mut buffer) {
             Ok(bytes_read) if bytes_read > 0 => {
                 self.process_data(&buffer[..bytes_read]);
                 // Only return data when we have a complete angle reading
                 if self.frame_state == FrameState::Idle {
-                    Ok(Some((self.acc, self.gyro, self.angle, self.quaternion)))
+                    Ok(Some(self.imu_data))
                 } else {
                     Ok(None)
                 }
@@ -157,7 +152,6 @@ impl IMU {
                                 self.byte_num = 2;
                             }
                             0x59 => {
-                                // println!("frame_state: {:?}", self.frame_state);
                                 self.frame_state = FrameState::Quaternion;
                                 self.byte_num = 2;
                             }
@@ -167,7 +161,6 @@ impl IMU {
                         }
                     }
                 }
-                // 11 bytes per packet for all, including the SOF.
                 FrameState::Acc => {
                     if self.byte_num < 10 {
                         self.acc_data[self.byte_num - 2] = data;
@@ -175,7 +168,7 @@ impl IMU {
                         self.byte_num += 1;
                     } else {
                         if data == (self.checksum & 0xFF) {
-                            self.acc = Self::get_acc(&self.acc_data);
+                            self.imu_data.accelerometer = Self::get_acc(&self.acc_data);
                         }
                         self.reset();
                     }
@@ -187,7 +180,7 @@ impl IMU {
                         self.byte_num += 1;
                     } else {
                         if data == (self.checksum & 0xFF) {
-                            self.gyro = Self::get_gyro(&self.gyro_data);
+                            self.imu_data.gyroscope = Self::get_gyro(&self.gyro_data);
                         }
                         self.reset();
                     }
@@ -199,7 +192,7 @@ impl IMU {
                         self.byte_num += 1;
                     } else {
                         if data == (self.checksum & 0xFF) {
-                            self.angle = Self::get_angle(&self.angle_data);
+                            self.imu_data.euler = Self::get_angle(&self.angle_data);
                         }
                         self.reset();
                     }
@@ -211,7 +204,7 @@ impl IMU {
                         self.byte_num += 1;
                     } else {
                         if data == (self.checksum & 0xFF) {
-                            self.quaternion = Self::get_quaternion(&self.quaternion_data);
+                            self.imu_data.quaternion = Self::get_quaternion(&self.quaternion_data);
                         }
                         self.reset();
                     }

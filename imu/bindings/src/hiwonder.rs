@@ -1,4 +1,4 @@
-use hiwonder::IMU;
+use hiwonder::HiWonderIMU;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::sync::{Arc, Mutex};
@@ -47,7 +47,7 @@ pub struct PyHiwonderImu {
 impl PyHiwonderImu {
     #[new]
     fn new(interface: String, baud_rate: u32) -> PyResult<Self> {
-        let imu = IMU::new(&interface, baud_rate)
+        let imu = HiWonderIMU::new(&interface, baud_rate)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         Ok(PyHiwonderImu {
             inner: Arc::new(Mutex::new(imu)),
@@ -61,9 +61,13 @@ impl PyHiwonderImu {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         match imu.read_data() {
-            Ok(Some((accel, gyro, angle, quat))) => Python::with_gil(|py| {
-                let data =
-                    PyImuData::new(accel.to_vec(), gyro.to_vec(), angle.to_vec(), quat.to_vec());
+            Ok(Some(imu_data)) => Python::with_gil(|py| {
+                let data = PyImuData::new(
+                    vec![imu_data.accelerometer.x, imu_data.accelerometer.y, imu_data.accelerometer.z],
+                    vec![imu_data.gyroscope.x, imu_data.gyroscope.y, imu_data.gyroscope.z],
+                    vec![imu_data.euler.roll, imu_data.euler.pitch, imu_data.euler.yaw],
+                    vec![imu_data.quaternion.w, imu_data.quaternion.x, imu_data.quaternion.y, imu_data.quaternion.z],
+                );
                 Ok(Some(Py::new(py, data)?.into_py(py)))
             }),
             Ok(None) => Ok(None),

@@ -16,6 +16,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 
+imu = { path = ".." }
 i2cdev = "0.6"
 byteorder = "1.5"
 bitflags = "2.6"
