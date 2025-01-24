@@ -1,4 +1,4 @@
-use hiwonder::IMU;
+use hiwonder::{ImuFrequency, IMU};
 use std::io;
 
 //* run by  `cargo run --bin log` */
@@ -42,6 +42,11 @@ impl From<([f32; 3], [f32; 3], [f32; 3], [f32; 4])> for IMUData {
 fn main() -> io::Result<()> {
     let mut imu =
         IMU::new("/dev/ttyUSB0", 9600).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+    match imu.set_frequency(ImuFrequency::Hz20) {
+        Ok(_) => println!("Set frequency to 200hz"),
+        Err(e) => println!("Failed to set frequency: {}", e),
+    }
 
     loop {
         match imu.read_data() {
