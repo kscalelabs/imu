@@ -44,6 +44,41 @@ enum FrameState {
     Quaternion,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ImuFrequency {
+    Hz0_2,  // 0.2 Hz
+    Hz0_5,  // 0.5 Hz
+    Hz1,    // 1 Hz
+    Hz2,    // 2 Hz
+    Hz5,    // 5 Hz
+    Hz10,   // 10 Hz
+    Hz20,   // 20 Hz
+    Hz50,   // 50 Hz
+    Hz100,  // 100 Hz
+    Hz200,  // 200 Hz
+    Single, // Single reading
+    None,   // No readings
+}
+
+impl ImuFrequency {
+    fn to_byte(&self) -> u8 {
+        match self {
+            ImuFrequency::Hz0_2 => 0x01,
+            ImuFrequency::Hz0_5 => 0x02,
+            ImuFrequency::Hz1 => 0x03,
+            ImuFrequency::Hz2 => 0x04,
+            ImuFrequency::Hz5 => 0x05,
+            ImuFrequency::Hz10 => 0x06,
+            ImuFrequency::Hz20 => 0x07,
+            ImuFrequency::Hz50 => 0x08,
+            ImuFrequency::Hz100 => 0x09,
+            ImuFrequency::Hz200 => 0x0B,
+            ImuFrequency::Single => 0x0C,
+            ImuFrequency::None => 0x0D,
+        }
+    }
+}
+
 pub struct IMU {
     port: Box<dyn serialport::SerialPort>,
     frame_state: FrameState,
@@ -96,16 +131,13 @@ impl IMU {
         // packet.push(0x55); // many of these...
         // self.port.write_all(&packet)
 
-        // Send commands in sequence
+        // Send commands in sequence.
         self.write_command(&unlock_cmd)?;
         self.write_command(&config_cmd)?;
         self.write_command(&save_cmd)?;
 
-        // * Set IMU Freq
-        // RATE (0x03) Hz: 0x01=0.2, 0x02=0.5, 0x03=1, 0x04=2, 0x05=5, 0x06=10,
-        //0x07=20, 0x08=50, 0x09=100, 0x0B=200hz, 0x0C=Single, 0x0D=None
-        let freq_cmd = vec![0xFF, 0xAA, 0x03, 0x04, 0x00]; // 0x0B 200hz
-        self.write_command(&freq_cmd)?;
+        // Set IMU frequency to a reasonable default.
+        self.set_frequency(ImuFrequency::Hz100)?;
         Ok(())
     }
 
@@ -113,6 +145,12 @@ impl IMU {
         self.port.write_all(command).map_err(ImuError::WriteError)?;
         // 200 hz -> 5ms
         std::thread::sleep(Duration::from_millis(30));
+        Ok(())
+    }
+
+    pub fn set_frequency(&mut self, frequency: ImuFrequency) -> Result<(), ImuError> {
+        let freq_cmd = vec![0xFF, 0xAA, 0x03, frequency.to_byte(), 0x00];
+        self.write_command(&freq_cmd)?;
         Ok(())
     }
 
