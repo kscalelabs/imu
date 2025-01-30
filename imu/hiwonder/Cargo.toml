@@ -1,6 +1,6 @@
 [package]
 name = "hiwonder"
-version = "0.2.2"
+version = "0.2.3"
 readme = "README.md"
 description = "Interface for interacting with Hiwonder IMUs"
 edition = "2021"
@@ -15,4 +15,3 @@ serialport = "4.2.0"
 
 name = "hiwonder"
 crate-type = ["rlib"]
-

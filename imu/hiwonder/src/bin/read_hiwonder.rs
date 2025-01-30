@@ -1,11 +1,16 @@
-use hiwonder::HiwonderReader;
+use hiwonder::{ImuFrequency, HiwonderReader};
 use std::io;
 use std::thread;
 use std::time::Duration;
 
 fn main() -> io::Result<()> {
-    let reader = HiwonderReader::new("/dev/ttyUSB0", 9600)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let mut reader =
+        HiwonderReader::new("/dev/ttyUSB0", 9600).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+    match reader.set_frequency(ImuFrequency::Hz20) {
+        Ok(_) => println!("Set frequency to 200hz"),
+        Err(e) => println!("Failed to set frequency: {}", e),
+    }
 
     loop {
         match reader.get_data() {
