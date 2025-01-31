@@ -4,10 +4,10 @@ use std::thread;
 use std::time::Duration;
 
 fn main() -> io::Result<()> {
-    let mut reader =
+    let reader =
         HiwonderReader::new("/dev/ttyUSB0", 9600).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    match reader.set_frequency(ImuFrequency::Hz20) {
+    match reader.set_frequency(ImuFrequency::Hz200) {
         Ok(_) => println!("Set frequency to 200hz"),
         Err(e) => println!("Failed to set frequency: {}", e),
     }

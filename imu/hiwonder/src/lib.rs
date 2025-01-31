@@ -385,6 +385,7 @@ pub struct HiwonderReader {
 pub enum ImuCommand {
     Reset,
     Stop,
+    SetFrequency(ImuFrequency),
 }
 
 impl HiwonderReader {
@@ -445,6 +446,11 @@ impl HiwonderReader {
                             }
                             break;
                         }
+                        ImuCommand::SetFrequency(frequency) => {
+                            if let Err(e) = imu.set_frequency(frequency) {
+                                eprintln!("Failed to set frequency: {}", e);
+                            }
+                        }
                     }
                 }
 
@@ -463,6 +469,7 @@ impl HiwonderReader {
                 }
 
                 // Sleep for a short duration to prevent busy waiting
+                // Max frequency is 200hz, so 5ms is the max delay
                 thread::sleep(Duration::from_millis(5));
             }
         });
@@ -476,6 +483,12 @@ impl HiwonderReader {
     pub fn reset(&self) -> Result<(), ImuError> {
         self.command_tx
             .send(ImuCommand::Reset)
+            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+    }
+
+    pub fn set_frequency(&self, frequency: ImuFrequency) -> Result<(), ImuError> {
+        self.command_tx
+            .send(ImuCommand::SetFrequency(frequency))
             .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
     }
 
