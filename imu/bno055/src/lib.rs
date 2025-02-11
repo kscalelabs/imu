@@ -141,26 +141,33 @@ impl Bno055 {
     /// * `i2c_bus` - The I2C bus path (e.g., "/dev/i2c-1")
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
         debug!("BNO055::new - Opening I2C device on bus: {}", i2c_bus);
+        println!("BNO055::new - Opening I2C device on bus: {}", i2c_bus);
         let i2c = LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr as u16)?;
         debug!("BNO055::new - I2C device opened");
+        println!("BNO055::new - I2C device opened");
         let mut bno = Bno055 { i2c };
 
         // Set page 0 before initialization
         debug!("BNO055::new - Setting page to Page0");
+        println!("BNO055::new - Setting page to Page0");
         bno.set_page(RegisterPage::Page0)?;
 
         // Verify we're talking to the right chip
         debug!("BNO055::new - Verifying chip ID");
+        println!("BNO055::new - Verifying chip ID");
         bno.verify_chip_id()?;
 
         // Reset the device
         debug!("BNO055::new - Resetting sensor");
+        println!("BNO055::new - Resetting sensor");
         bno.reset()?;
 
         // Configure for NDOF mode (9-axis fusion)
         debug!("BNO055::new - Setting sensor mode to Ndof");
+        println!("BNO055::new - Setting sensor mode to Ndof");
         bno.set_mode(OperationMode::Ndof)?;
         debug!("BNO055::new - Sensor initialization complete");
+        println!("BNO055::new - Sensor initialization complete");
 
         Ok(bno)
     }
@@ -414,11 +421,13 @@ impl Bno055Reader {
     ) {
         thread::spawn(move || {
             debug!("BNO055 reading thread started");
+            println!("BNO055 reading thread started");
             while let Ok(guard) = running.read() {
                 if !*guard {
                     break;
                 }
                 debug!("BNO055 reading thread iteration");
+                println!("BNO055 reading thread iteration");
 
                 // Process any pending commands
                 if let Ok(command) = command_rx.try_recv() {
@@ -551,6 +560,7 @@ impl Bno055Reader {
                 thread::sleep(Duration::from_millis(10));
             }
             debug!("BNO055 reading thread exiting");
+            println!("BNO055 reading thread exiting");
         });
     }
 
@@ -592,3 +602,4 @@ pub enum ImuCommand {
     Reset,
     Stop,
 }
+
