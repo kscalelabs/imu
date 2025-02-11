@@ -9,6 +9,10 @@ use std::time::Duration;
 mod registers;
 use registers::{AccelRegisters, GyroRegisters, Constants, AccelRange, GyroRange};
 
+// Add these constants at the top of the file
+pub const ACCEL_ADDR: u8 = 0x18;  // Default BMI088 accelerometer address
+pub const GYRO_ADDR: u8 = 0x68;   // Default BMI088 gyroscope address
+
 /// 3D vector type.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Vector3 {
@@ -358,4 +362,19 @@ fn euler_to_quaternion(e: EulerAngles) -> Quaternion {
         y: cr * sp * cy + sr * cp * sy,
         z: cr * cp * sy - sr * sp * cy,
     }
-} 
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn sanity_check_bmi088() {
+        // This test confirms that we can access the BMI088 code
+        let accel_addr = 0x18;  // Default BMI088 accelerometer address
+        let gyro_addr = 0x68;   // Default BMI088 gyroscope address
+        
+        assert_eq!(accel_addr, crate::ACCEL_ADDR);
+        assert_eq!(gyro_addr, crate::GYRO_ADDR);
+        
+        println!("BMI088 crate version: {}", env!("CARGO_PKG_VERSION"));
+    }
+}
