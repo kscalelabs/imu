@@ -12,7 +12,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-use log::debug;
+use log::{debug, info};
 
 #[derive(Debug)]
 pub enum Error {
