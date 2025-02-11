@@ -56,9 +56,10 @@ pub struct Bmi088Data {
     pub euler: EulerAngles,
     pub accelerometer: Vector3,
     pub gyroscope: Vector3,
+    pub magnetometer: Vector3,
     pub linear_acceleration: Vector3,
     pub gravity: Vector3,
-    pub temperature: f32,
+    pub temperature: i8,
     pub calibration_status: u8,
 }
 
@@ -69,9 +70,10 @@ impl Default for Bmi088Data {
             euler: EulerAngles::default(),
             accelerometer: Vector3::default(),
             gyroscope: Vector3::default(),
+            magnetometer: Vector3::default(),
             linear_acceleration: Vector3::default(),
             gravity: Vector3::default(),
-            temperature: 0.0,
+            temperature: 0,
             calibration_status: 0,
         }
     }
@@ -125,7 +127,7 @@ pub struct Bmi088 {
 impl Bmi088 {
     /// Initializes the BMI088 sensor on the given I2C bus.
     pub fn new(i2c_path: &str) -> Result<Self, Error> {
-        println!("Initializing BMI088...");
+        println!("Initializing BMI088... ali latest hello");
 
         let mut accel_i2c = LinuxI2CDevice::new(i2c_path, Constants::AccelI2cAddr as u16)?;
         let gyro_i2c = LinuxI2CDevice::new(i2c_path, Constants::GyroI2cAddr as u16)?;
@@ -205,11 +207,11 @@ impl Bmi088 {
     }
 
     /// Reads temperature (in °C) from the accelerometer.
-    pub fn read_temperature(&mut self) -> Result<f32, Error> {
+    pub fn read_temperature(&mut self) -> Result<i8, Error> {
         let msb = self.accel_i2c.smbus_read_byte_data(AccelRegisters::TempMsb as u8)? as i16;
         let lsb = self.accel_i2c.smbus_read_byte_data(AccelRegisters::TempLsb as u8)? as i16;
         let temp_raw = (msb * 8) + (lsb / 32);
-        Ok((temp_raw as f32) * 0.125 + 23.0)
+        Ok(((temp_raw as f32) * 0.125 + 23.0) as i8)
     }
 
     /// Updates the simple Euler integration state based on gyroscope data.
