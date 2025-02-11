@@ -18,3 +18,4 @@ hiwonder = "0.2.3"
 linux_bno055 = "0.0.6"
 socketcan = "3.3.0"
 log = "0.4"
+linux_bmi088 = { path = "./bmi088" }

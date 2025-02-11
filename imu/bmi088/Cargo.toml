@@ -1,0 +1,15 @@
+[package]
+name = "linux_bmi088"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Interface for BMI088 IMU"
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+byteorder = "1.5"
+i2cdev = "0.6"
+log = "0.4"
+num-derive = "0.4"
+num-traits = "0.2" 

@@ -6,6 +6,7 @@ members = [
     "imu/hexmove",
     "imu/hiwonder",
     "imu/bno055",
+    "imu/bmi088",
 ]
 resolver = "2"
 
