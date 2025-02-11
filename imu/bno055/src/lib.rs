@@ -2,7 +2,7 @@ mod registers;
 use byteorder::{ByteOrder, LittleEndian};
 use i2cdev::core::I2CDevice;
 use i2cdev::linux::LinuxI2CDevice;
-use log::{error, warn};
+use log::{debug, error, warn};
 pub use registers::OperationMode;
 use registers::{
     AccelRegisters, ChipRegisters, Constants, EulerRegisters, GravityRegisters, GyroRegisters,
@@ -374,54 +374,32 @@ impl Bno055 {
 pub struct Bno055Reader {
     data: Arc<RwLock<BnoData>>,
     command_tx: mpsc::Sender<ImuCommand>,
-    running: Arc<RwLock<bool>>,
 }
 
 impl Bno055Reader {
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
         let data = Arc::new(RwLock::new(BnoData::default()));
-        let running = Arc::new(RwLock::new(true));
         let (command_tx, command_rx) = mpsc::channel();
 
-        let reader = Bno055Reader {
-            data: Arc::clone(&data),
-            command_tx,
-            running: Arc::clone(&running),
-        };
+        // Synchronously initialize (calibrate) the IMU.
+        // If this fails, the error is propagated immediately.
+        let imu = Bno055::new(i2c_bus)?;
 
-        reader.start_reading_thread(i2c_bus, command_rx)?;
+        // Spawn a thread that continuously reads sensor data using the initialized IMU.
+        Self::start_reading_thread_with_imu(imu, Arc::clone(&data), command_rx);
 
-        Ok(reader)
+        Ok(Bno055Reader { data, command_tx })
     }
 
-    fn start_reading_thread(
-        &self,
-        i2c_bus: &str,
-        command_rx: mpsc::Receiver<ImuCommand>,
-    ) -> Result<(), Error> {
-        let data = Arc::clone(&self.data);
-        let running = Arc::clone(&self.running);
-        let i2c_bus = i2c_bus.to_string();
-
-        let (tx, rx) = mpsc::channel();
-
+    fn start_reading_thread_with_imu(
+        mut imu: Bno055,
+        data: Arc<RwLock<BnoData>>,
+        command_rx: mpsc::Receiver<ImuCommand>
+    ) {
         thread::spawn(move || {
-            // Initialize IMU inside the thread and send result back
-            let init_result = Bno055::new(&i2c_bus);
-            if let Err(e) = init_result {
-                error!("Failed to initialize BNO055: {}", e);
-                let _ = tx.send(Err(e));
-                return;
-            }
-            let mut imu = init_result.unwrap();
-            let _ = tx.send(Ok(()));
-
-            while let Ok(guard) = running.read() {
-                if !*guard {
-                    break;
-                }
-
-                // Check for any pending commands
+            debug!("BNO055 reading thread started");
+            loop {
+                // Process any pending commands
                 if let Ok(command) = command_rx.try_recv() {
                     match command {
                         ImuCommand::SetMode(mode) => {
@@ -434,19 +412,13 @@ impl Bno055Reader {
                                 error!("Failed to reset: {}", e);
                             }
                         }
-                        ImuCommand::Stop => {
-                            if let Ok(mut guard) = running.write() {
-                                *guard = false;
-                            }
-                            break;
-                        }
+                        ImuCommand::Stop => break,
                     }
                 }
 
-                // Read all sensor data
+                // Read sensor data and update shared data
                 let mut data_holder = BnoData::default();
 
-                // Read all sensor data (same as before)
                 if let Ok(quat) = imu.get_quaternion() {
                     data_holder.quaternion = quat;
                 } else {
@@ -509,13 +481,8 @@ impl Bno055Reader {
                 // IMU sends data at 100 Hz
                 thread::sleep(Duration::from_millis(10));
             }
+            debug!("BNO055 reading thread exiting");
         });
-
-        // Wait for initialization result before returning
-        match rx.recv().map_err(|_| Error::ReadError) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
     }
 
     pub fn set_mode(&self, mode: OperationMode) -> Result<(), Error> {
