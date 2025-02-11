@@ -56,7 +56,10 @@ pub struct Bmi088Data {
     pub euler: EulerAngles,
     pub accelerometer: Vector3,
     pub gyroscope: Vector3,
+    pub linear_acceleration: Vector3,
+    pub gravity: Vector3,
     pub temperature: f32,
+    pub calibration_status: u8,
 }
 
 impl Default for Bmi088Data {
@@ -66,7 +69,10 @@ impl Default for Bmi088Data {
             euler: EulerAngles::default(),
             accelerometer: Vector3::default(),
             gyroscope: Vector3::default(),
+            linear_acceleration: Vector3::default(),
+            gravity: Vector3::default(),
             temperature: 0.0,
+            calibration_status: 0,
         }
     }
 }
@@ -329,12 +335,23 @@ impl Bmi088Reader {
     
     /// Returns the most recent sensor data.
     pub fn get_data(&self) -> Result<Bmi088Data, Error> {
-        self.data.read().map(|d| *d).map_err(|_| Error::ReadError)
+        self.data.read().map(|data| *data).map_err(|_| Error::ReadError)
     }
     
     /// Stops the reading thread.
     pub fn stop(&self) -> Result<(), Error> {
         self.command_tx.send(ImuCommand::Stop).map_err(|_| Error::WriteError)
+    }
+
+    /// Resets the BMI088 sensor.
+    pub fn reset(&self) -> Result<(), Error> {
+        self.command_tx.send(ImuCommand::Reset).map_err(|_| Error::WriteError)
+    }
+
+    /// Sets the mode for BMI088.
+    /// BMI088 does not support the mode configuration like BNO055, so this is a no-op.
+    pub fn set_mode(&self, _mode: u8) -> Result<(), Error> {
+        Ok(())
     }
 }
 
