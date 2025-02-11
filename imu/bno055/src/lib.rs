@@ -12,6 +12,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+use log::debug;
 
 #[derive(Debug)]
 pub enum Error {
@@ -139,20 +140,27 @@ impl Bno055 {
     /// # Arguments
     /// * `i2c_bus` - The I2C bus path (e.g., "/dev/i2c-1")
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
+        debug!("BNO055::new - Opening I2C device on bus: {}", i2c_bus);
         let i2c = LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr as u16)?;
+        debug!("BNO055::new - I2C device opened");
         let mut bno = Bno055 { i2c };
 
         // Set page 0 before initialization
+        debug!("BNO055::new - Setting page to Page0");
         bno.set_page(RegisterPage::Page0)?;
 
         // Verify we're talking to the right chip
+        debug!("BNO055::new - Verifying chip ID");
         bno.verify_chip_id()?;
 
         // Reset the device
+        debug!("BNO055::new - Resetting sensor");
         bno.reset()?;
 
         // Configure for NDOF mode (9-axis fusion)
+        debug!("BNO055::new - Setting sensor mode to Ndof");
         bno.set_mode(OperationMode::Ndof)?;
+        debug!("BNO055::new - Sensor initialization complete");
 
         Ok(bno)
     }
@@ -405,10 +413,12 @@ impl Bno055Reader {
         command_rx: mpsc::Receiver<ImuCommand>,
     ) {
         thread::spawn(move || {
+            debug!("BNO055 reading thread started");
             while let Ok(guard) = running.read() {
                 if !*guard {
                     break;
                 }
+                debug!("BNO055 reading thread iteration");
 
                 // Process any pending commands
                 if let Ok(command) = command_rx.try_recv() {
@@ -416,17 +426,22 @@ impl Bno055Reader {
                         ImuCommand::SetMode(mode) => {
                             if let Err(e) = imu.set_mode(mode) {
                                 error!("Failed to set mode: {}", e);
+                            } else {
+                                debug!("Set mode command processed");
                             }
                         }
                         ImuCommand::Reset => {
                             if let Err(e) = imu.reset() {
                                 error!("Failed to reset: {}", e);
+                            } else {
+                                debug!("Reset command processed");
                             }
                         }
                         ImuCommand::Stop => {
                             if let Ok(mut guard) = running.write() {
                                 *guard = false;
                             }
+                            debug!("Stop command processed, exiting thread");
                             break;
                         }
                     }
@@ -434,69 +449,108 @@ impl Bno055Reader {
 
                 let mut data_holder = BnoData::default();
 
-                // Read sensor data
-                if let Ok(quat) = imu.get_quaternion() {
-                    data_holder.quaternion = quat;
-                } else {
-                    warn!("Failed to get quaternion");
+                // Read sensor data with debug logging for each measurement.
+                match imu.get_quaternion() {
+                    Ok(quat) => {
+                        debug!("Quaternion read successfully: {:?}", quat);
+                        data_holder.quaternion = quat;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get quaternion: {}", e);
+                    },
                 }
 
-                if let Ok(euler) = imu.get_euler_angles() {
-                    data_holder.euler = euler;
-                } else {
-                    warn!("Failed to get euler angles");
+                match imu.get_euler_angles() {
+                    Ok(euler) => {
+                        debug!("Euler angles read successfully: {:?}", euler);
+                        data_holder.euler = euler;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get euler angles: {}", e);
+                    },
                 }
 
-                if let Ok(accel) = imu.get_accelerometer() {
-                    data_holder.accelerometer = accel;
-                } else {
-                    warn!("Failed to get accelerometer");
+                match imu.get_accelerometer() {
+                    Ok(accel) => {
+                        debug!("Accelerometer read successfully: {:?}", accel);
+                        data_holder.accelerometer = accel;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get accelerometer: {}", e);
+                    },
                 }
 
-                if let Ok(gyro) = imu.get_gyroscope() {
-                    data_holder.gyroscope = gyro;
-                } else {
-                    warn!("Failed to get gyroscope");
+                match imu.get_gyroscope() {
+                    Ok(gyro) => {
+                        debug!("Gyroscope read successfully: {:?}", gyro);
+                        data_holder.gyroscope = gyro;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get gyroscope: {}", e);
+                    },
                 }
 
-                if let Ok(mag) = imu.get_magnetometer() {
-                    data_holder.magnetometer = mag;
-                } else {
-                    warn!("Failed to get magnetometer");
+                match imu.get_magnetometer() {
+                    Ok(mag) => {
+                        debug!("Magnetometer read successfully: {:?}", mag);
+                        data_holder.magnetometer = mag;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get magnetometer: {}", e);
+                    },
                 }
 
-                if let Ok(linear_accel) = imu.get_linear_acceleration() {
-                    data_holder.linear_acceleration = linear_accel;
-                } else {
-                    warn!("Failed to get linear acceleration");
+                match imu.get_linear_acceleration() {
+                    Ok(linear_accel) => {
+                        debug!("Linear acceleration read successfully: {:?}", linear_accel);
+                        data_holder.linear_acceleration = linear_accel;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get linear acceleration: {}", e);
+                    },
                 }
 
-                if let Ok(gravity) = imu.get_gravity_vector() {
-                    data_holder.gravity = gravity;
-                } else {
-                    warn!("Failed to get gravity vector");
+                match imu.get_gravity_vector() {
+                    Ok(gravity) => {
+                        debug!("Gravity vector read successfully: {:?}", gravity);
+                        data_holder.gravity = gravity;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get gravity vector: {}", e);
+                    },
                 }
 
-                if let Ok(temp) = imu.get_temperature() {
-                    data_holder.temperature = temp;
-                } else {
-                    warn!("Failed to get temperature");
+                match imu.get_temperature() {
+                    Ok(temp) => {
+                        debug!("Temperature read successfully: {:?}", temp);
+                        data_holder.temperature = temp;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get temperature: {}", e);
+                    },
                 }
 
-                if let Ok(status) = imu.get_calibration_status() {
-                    data_holder.calibration_status = status;
-                } else {
-                    warn!("Failed to get calibration status");
+                match imu.get_calibration_status() {
+                    Ok(status) => {
+                        debug!("Calibration status read successfully: {:?}", status);
+                        data_holder.calibration_status = status;
+                    },
+                    Err(e) => {
+                        warn!("Failed to get calibration status: {}", e);
+                    },
                 }
 
                 // Update shared data
                 if let Ok(mut imu_data) = data.write() {
                     *imu_data = data_holder;
+                } else {
+                    warn!("Failed to write sensor data to shared state");
                 }
 
                 // Poll at roughly 100 Hz
                 thread::sleep(Duration::from_millis(10));
             }
+            debug!("BNO055 reading thread exiting");
         });
     }
 
