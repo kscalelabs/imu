@@ -4,7 +4,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 pub enum AccelRegisters {
     ChipId = 0x00,
     Error = 0x02,
-    Status = 0x1E,
+    Status = 0x03,
     AccelXLsb = 0x12,
     AccelXMsb = 0x13,
     AccelYLsb = 0x14,
