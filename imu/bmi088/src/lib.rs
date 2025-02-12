@@ -164,7 +164,7 @@ impl Bmi088 {
         })
     }
 
-    /// Reads raw accelerometer data and remaps axes so that gravity appears along -Z.
+    /// Reads raw accelerometer data without remapping.
     pub fn read_raw_accelerometer(&mut self) -> Result<Vector3, Error> {
         let mut buf = [0u8; 6];
         for i in 0..6 {
@@ -182,13 +182,13 @@ impl Bmi088 {
         let raw_y = (LittleEndian::read_i16(&buf[2..4]) as f32) * scale;
         let raw_z = (LittleEndian::read_i16(&buf[4..6]) as f32) * scale;
         Ok(Vector3 {
-            x: raw_y,
-            y: raw_z,
-            z: raw_x,
+            x: raw_x,
+            y: raw_y,
+            z: raw_z,
         })
     }
 
-    /// Reads raw gyroscope data and remaps axes for consistency.
+    /// Reads raw gyroscope data without remapping.
     pub fn read_raw_gyroscope(&mut self) -> Result<Vector3, Error> {
         let mut buf = [0u8; 6];
         for i in 0..6 {
@@ -207,9 +207,9 @@ impl Bmi088 {
         let raw_y = (LittleEndian::read_i16(&buf[2..4]) as f32) * scale;
         let raw_z = (LittleEndian::read_i16(&buf[4..6]) as f32) * scale;
         Ok(Vector3 {
-            x: raw_y,
-            y: raw_z,
-            z: raw_x,
+            x: raw_x,
+            y: raw_y,
+            z: raw_z,
         })
     }
 
