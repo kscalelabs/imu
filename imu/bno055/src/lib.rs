@@ -394,7 +394,7 @@ impl Bno055Reader {
     fn start_reading_thread_with_imu(
         mut imu: Bno055,
         data: Arc<RwLock<BnoData>>,
-        command_rx: mpsc::Receiver<ImuCommand>
+        command_rx: mpsc::Receiver<ImuCommand>,
     ) {
         thread::spawn(move || {
             debug!("BNO055 reading thread started");
