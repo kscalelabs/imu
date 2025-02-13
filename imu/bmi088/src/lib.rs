@@ -120,8 +120,6 @@ pub struct Bmi088 {
     gyro_i2c: LinuxI2CDevice,
     accel_range: AccelRange,
     gyro_range: GyroRange,
-    /// Used for simple Euler integration of gyro data.
-    simple_euler: EulerAngles,
 }
 
 impl Bmi088 {
@@ -160,7 +158,6 @@ impl Bmi088 {
             gyro_i2c,
             accel_range: AccelRange::G3,
             gyro_range: GyroRange::Dps2000,
-            simple_euler: EulerAngles::default(),
         })
     }
 
@@ -224,21 +221,6 @@ impl Bmi088 {
         let temp_raw = (msb * 8) + (lsb / 32);
         Ok(((temp_raw as f32) * 0.125 + 23.0) as i8)
     }
-
-    /// Updates the simple Euler integration state based on gyroscope data.
-    pub fn update_simple_euler(&mut self, dt: f32) -> Result<(), Error> {
-        let gyro = self.read_raw_gyroscope()?;
-        // Standard integration: roll from gyro.x, pitch from gyro.y, yaw from gyro.z.
-        self.simple_euler.roll += gyro.x * dt;
-        self.simple_euler.pitch += gyro.y * dt;
-        self.simple_euler.yaw += gyro.z * dt;
-        Ok(())
-    }
-
-    /// Returns the current integrated Euler angles.
-    pub fn get_simple_euler_angles(&self) -> EulerAngles {
-        self.simple_euler
-    }
 }
 
 /// BMI088Reader runs a background thread to update sensor data continuously.
@@ -292,7 +274,6 @@ impl Bmi088Reader {
             }
             let mut imu = init_result.unwrap();
             let _ = tx.send(Ok(()));
-            let mut simple_euler = EulerAngles::default();
 
             while let Ok(guard) = running.read() {
                 if !*guard {
@@ -335,12 +316,6 @@ impl Bmi088Reader {
                 }
                 if let Ok(gyro) = imu.read_raw_gyroscope() {
                     sensor_data.gyroscope = gyro;
-                    let dt = 0.01;
-                    simple_euler.roll += gyro.x * dt;
-                    simple_euler.pitch += gyro.y * dt;
-                    simple_euler.yaw += gyro.z * dt;
-                    sensor_data.euler = simple_euler;
-                    sensor_data.quaternion = euler_to_quaternion(simple_euler);
                 } else {
                     warn!("Failed to read gyroscope");
                 }
@@ -390,26 +365,6 @@ impl Bmi088Reader {
 impl Drop for Bmi088Reader {
     fn drop(&mut self) {
         let _ = self.stop();
-    }
-}
-
-// Add this helper function for quaternion conversion
-fn euler_to_quaternion(e: EulerAngles) -> Quaternion {
-    let (roll, pitch, yaw) = (
-        e.roll.to_radians(),
-        e.pitch.to_radians(),
-        e.yaw.to_radians(),
-    );
-
-    let (sr, cr) = (roll * 0.5).sin_cos();
-    let (sp, cp) = (pitch * 0.5).sin_cos();
-    let (sy, cy) = (yaw * 0.5).sin_cos();
-
-    Quaternion {
-        w: cr * cp * cy + sr * sp * sy,
-        x: sr * cp * cy - cr * sp * sy,
-        y: cr * sp * cy + sr * cp * sy,
-        z: cr * cp * sy - sr * sp * cy,
     }
 }
 
