@@ -1,15 +1,20 @@
 [package]
 name = "linux_bmi088"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
+readme = "README.md"
 description = "Interface for BMI088 IMU"
+version = "0.0.1"
+edition.workspace = true
+authors = ["Ali Kuwajerwala <ali@kscale.dev>"]
 license.workspace = true
 repository.workspace = true
+
+[lib]
+name = "linux_bmi088"
+crate-type = ["rlib"]
 
 [dependencies]
 byteorder = "1.5"
 i2cdev = "0.6"
 log = "0.4"
 num-derive = "0.4"
-num-traits = "0.2" 
+num-traits = "0.2"
