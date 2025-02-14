@@ -15,7 +15,7 @@ crate-type = ["rlib"]
 [dependencies]
 hexmove = "0.1.6"
 hiwonder = "0.2.3"
-linux_bno055 = { path = "./bno055" }
+linux_bno055 = "0.0.7"
+linux_bmi088 = "0.0.1"
 socketcan = "3.3.0"
 log = "0.4"
-linux_bmi088 = { path = "./bmi088" }
