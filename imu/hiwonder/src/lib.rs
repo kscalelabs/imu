@@ -267,92 +267,56 @@ impl IMU {
     }
 
     fn get_acc(datahex: &[u8; 8]) -> [f32; 3] {
-        let k_acc = 16.0;
-        let acc_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_acc;
-        let acc_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_acc;
-        let acc_z = ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0 * k_acc;
+        let k_acc = 16.0 * 9.80665;
+        let acc_x = i16::from(datahex[1]) << 8 | i16::from(datahex[0]);
+        let acc_y = i16::from(datahex[3]) << 8 | i16::from(datahex[2]);
+        let acc_z = i16::from(datahex[5]) << 8 | i16::from(datahex[4]);
 
         [
-            if acc_x >= k_acc {
-                acc_x - 2.0 * k_acc
-            } else {
-                acc_x
-            },
-            if acc_y >= k_acc {
-                acc_y - 2.0 * k_acc
-            } else {
-                acc_y
-            },
-            if acc_z >= k_acc {
-                acc_z - 2.0 * k_acc
-            } else {
-                acc_z
-            },
+            acc_x as f32 / 32768.0 * k_acc,
+            acc_y as f32 / 32768.0 * k_acc,
+            acc_z as f32 / 32768.0 * k_acc,
         ]
     }
 
     fn get_gyro(datahex: &[u8; 8]) -> [f32; 3] {
-        let k_gyro = 2000.0;
-        let gyro_x =
-            ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_gyro;
-        let gyro_y =
-            ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_gyro;
-        let gyro_z =
-            ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0 * k_gyro;
+        let k_gyro = 2000.0 * 3.1415926 / 180.0;
+        let gyro_x = i16::from(datahex[1]) << 8 | i16::from(datahex[0]);
+        let gyro_y = i16::from(datahex[3]) << 8 | i16::from(datahex[2]);
+        let gyro_z = i16::from(datahex[5]) << 8 | i16::from(datahex[4]);
 
         [
-            if gyro_x >= k_gyro {
-                gyro_x - 2.0 * k_gyro
-            } else {
-                gyro_x
-            },
-            if gyro_y >= k_gyro {
-                gyro_y - 2.0 * k_gyro
-            } else {
-                gyro_y
-            },
-            if gyro_z >= k_gyro {
-                gyro_z - 2.0 * k_gyro
-            } else {
-                gyro_z
-            },
+            gyro_x as f32 / 32768.0 * k_gyro,
+            gyro_y as f32 / 32768.0 * k_gyro,
+            gyro_z as f32 / 32768.0 * k_gyro,
         ]
     }
 
     fn get_angle(datahex: &[u8; 8]) -> [f32; 3] {
-        let k_angle = 180.0;
-        let angle_x =
-            ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0 * k_angle;
-        let angle_y =
-            ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0 * k_angle;
-        let angle_z =
-            ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0 * k_angle;
+        let k_angle = 3.1415926;
+        let angle_x = i16::from(datahex[1]) << 8 | i16::from(datahex[0]);
+        let angle_y = i16::from(datahex[3]) << 8 | i16::from(datahex[2]);
+        let angle_z = i16::from(datahex[5]) << 8 | i16::from(datahex[4]);
 
         [
-            if angle_x >= k_angle {
-                angle_x - 2.0 * k_angle
-            } else {
-                angle_x
-            },
-            if angle_y >= k_angle {
-                angle_y - 2.0 * k_angle
-            } else {
-                angle_y
-            },
-            if angle_z >= k_angle {
-                angle_z - 2.0 * k_angle
-            } else {
-                angle_z
-            },
+            angle_x as f32 / 32768.0 * k_angle,
+            angle_y as f32 / 32768.0 * k_angle,
+            angle_z as f32 / 32768.0 * k_angle,
         ]
     }
 
     fn get_quaternion(datahex: &[u8; 8]) -> [f32; 4] {
-        let quaternion_x = ((u16::from(datahex[1]) << 8) | u16::from(datahex[0])) as f32 / 32768.0;
-        let quaternion_y = ((u16::from(datahex[3]) << 8) | u16::from(datahex[2])) as f32 / 32768.0;
-        let quaternion_z = ((u16::from(datahex[5]) << 8) | u16::from(datahex[4])) as f32 / 32768.0;
-        let quaternion_w = ((u16::from(datahex[7]) << 8) | u16::from(datahex[6])) as f32 / 32768.0;
-        [quaternion_x, quaternion_y, quaternion_z, quaternion_w]
+        let quaternion_x = i16::from(datahex[1]) << 8 | i16::from(datahex[0]);
+        let quaternion_y = i16::from(datahex[3]) << 8 | i16::from(datahex[2]);
+        let quaternion_z = i16::from(datahex[5]) << 8 | i16::from(datahex[4]);
+        let quaternion_w = i16::from(datahex[7]) << 8 | i16::from(datahex[6]);
+
+        [
+            quaternion_x as f32 / 32768.0,
+            quaternion_y as f32 / 32768.0,
+            quaternion_z as f32 / 32768.0,
+            quaternion_w as f32 / 32768.0,
+        ]
     }
 }
 
