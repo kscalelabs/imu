@@ -138,7 +138,7 @@ impl IMU {
         self.write_command(&config_cmd)?;
         self.write_command(&save_cmd)?;
 
-        // Set IMU frequency to a reasonable default.
+        // Set IMU frequency and acc filter to a reasonable default.
         self.set_frequency(ImuFrequency::Hz100)?;
         Ok(())
     }
@@ -153,6 +153,13 @@ impl IMU {
     pub fn set_frequency(&mut self, frequency: ImuFrequency) -> Result<(), ImuError> {
         let freq_cmd = vec![0xFF, 0xAA, 0x03, frequency.to_byte(), 0x00];
         self.write_command(&freq_cmd)?;
+        Ok(())
+    }
+
+    pub fn set_acc_filter(&mut self, filt_value: u32) -> Result<(), ImuError> {
+        let filt_value_bytes = filt_value.to_le_bytes();
+        let acc_filter_cmd = vec![0xFF, 0xAA, 0x2A, filt_value_bytes[0], filt_value_bytes[1]];
+        self.write_command(&acc_filter_cmd)?;
         Ok(())
     }
 
@@ -350,6 +357,7 @@ pub enum ImuCommand {
     Reset,
     Stop,
     SetFrequency(ImuFrequency),
+    SetAccFilter(u32),
 }
 
 impl HiwonderReader {
@@ -415,6 +423,11 @@ impl HiwonderReader {
                                 eprintln!("Failed to set frequency: {}", e);
                             }
                         }
+                        ImuCommand::SetAccFilter(filt_value) => {
+                            if let Err(e) = imu.set_acc_filter(filt_value) {
+                                eprintln!("Failed to set acc filter: {}", e);
+                            }
+                        }
                     }
                 }
 
@@ -453,6 +466,12 @@ impl HiwonderReader {
     pub fn set_frequency(&self, frequency: ImuFrequency) -> Result<(), ImuError> {
         self.command_tx
             .send(ImuCommand::SetFrequency(frequency))
+            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+    }
+
+    pub fn set_acc_filter(&self, filt_value: u32) -> Result<(), ImuError> {
+        self.command_tx
+            .send(ImuCommand::SetAccFilter(filt_value))
             .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
     }
 
