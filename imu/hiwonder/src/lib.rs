@@ -127,25 +127,34 @@ impl IMU {
         let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
         let config_cmd = vec![0xFF, 0xAA, 0x02, 0x0E, 0x02];
         let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
-
+        
         // Alternative:
         // let mut packet = Vec::with_capacity(5 + data.len());
         // packet.push(0x55); // many of these...
         // self.port.write_all(&packet)
-
+        
         // Send commands in sequence.
-        self.write_command(&unlock_cmd)?;
-        self.write_command(&config_cmd)?;
-        self.write_command(&save_cmd)?;
+        self.port.write_all(&unlock_cmd)?;
+        self.port.write_all(&config_cmd)?;
+        self.port.write_all(&save_cmd)?;
 
-        // Set IMU frequency to a reasonable default.
+        // Set IMU frequency and acc filter to a reasonable default.
         self.set_frequency(ImuFrequency::Hz100)?;
+        self.set_acc_filter(500)?;
+        // self.set_kfilter(30)?;
         Ok(())
     }
 
     fn write_command(&mut self, command: &[u8]) -> Result<(), ImuError> {
+        let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
+        let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
+        self.port.write_all(&unlock_cmd)?;
+        // Sleep after unlock
+        std::thread::sleep(Duration::from_millis(30));
         self.port.write_all(command).map_err(ImuError::WriteError)?;
         // 200 hz -> 5ms
+        std::thread::sleep(Duration::from_millis(30));
+        self.port.write_all(&save_cmd)?;
         std::thread::sleep(Duration::from_millis(30));
         Ok(())
     }
@@ -153,6 +162,20 @@ impl IMU {
     pub fn set_frequency(&mut self, frequency: ImuFrequency) -> Result<(), ImuError> {
         let freq_cmd = vec![0xFF, 0xAA, 0x03, frequency.to_byte(), 0x00];
         self.write_command(&freq_cmd)?;
+        Ok(())
+    }
+
+    pub fn set_acc_filter(&mut self, filt_value: u32) -> Result<(), ImuError> {
+        let filt_value_bytes = filt_value.to_le_bytes();
+        let acc_filter_cmd = vec![0xFF, 0xAA, 0x2A, filt_value_bytes[0], filt_value_bytes[1]];
+        self.write_command(&acc_filter_cmd)?;
+        Ok(())
+    }
+
+    pub fn set_kfilter(&mut self, kfilt_value: u32) -> Result<(), ImuError> {
+        let kfilt_value_bytes = kfilt_value.to_le_bytes();
+        let k_filt_cmd = vec![0xFF, 0xAA, 0x25, kfilt_value_bytes[0], kfilt_value_bytes[1]];
+        self.write_command(&k_filt_cmd)?;
         Ok(())
     }
 
@@ -350,6 +373,8 @@ pub enum ImuCommand {
     Reset,
     Stop,
     SetFrequency(ImuFrequency),
+    SetAccFilter(u32),
+    SetKalmanFilter(u32),
 }
 
 impl HiwonderReader {
@@ -415,6 +440,16 @@ impl HiwonderReader {
                                 eprintln!("Failed to set frequency: {}", e);
                             }
                         }
+                        ImuCommand::SetAccFilter(filt_value) => {
+                            if let Err(e) = imu.set_acc_filter(filt_value) {
+                                eprintln!("Failed to set acc filter: {}", e);
+                            }
+                        }
+                        ImuCommand::SetKalmanFilter(kfilt_value) => {
+                            if let Err(e) = imu.set_kfilter(kfilt_value) {
+                                eprintln!("Failed to set k filter: {}", e);
+                            }
+                        }
                     }
                 }
 
@@ -453,6 +488,18 @@ impl HiwonderReader {
     pub fn set_frequency(&self, frequency: ImuFrequency) -> Result<(), ImuError> {
         self.command_tx
             .send(ImuCommand::SetFrequency(frequency))
+            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+    }
+
+    pub fn set_acc_filter(&self, filt_value: u32) -> Result<(), ImuError> {
+        self.command_tx
+            .send(ImuCommand::SetAccFilter(filt_value))
+            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+    }
+
+    pub fn set_kfilter(&self, kfilt_value: u32) -> Result<(), ImuError> {
+        self.command_tx
+            .send(ImuCommand::SetKalmanFilter(kfilt_value))
             .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
     }
 
