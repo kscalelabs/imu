@@ -141,6 +141,7 @@ impl IMU {
         // Set IMU frequency and acc filter to a reasonable default.
         self.set_frequency(ImuFrequency::Hz100)?;
         self.set_acc_filter(500)?;
+        // self.set_kfilter(30)?;
         Ok(())
     }
 
@@ -168,6 +169,13 @@ impl IMU {
         let filt_value_bytes = filt_value.to_le_bytes();
         let acc_filter_cmd = vec![0xFF, 0xAA, 0x2A, filt_value_bytes[0], filt_value_bytes[1]];
         self.write_command(&acc_filter_cmd)?;
+        Ok(())
+    }
+
+    pub fn set_kfilter(&mut self, kfilt_value: u32) -> Result<(), ImuError> {
+        let kfilt_value_bytes = kfilt_value.to_le_bytes();
+        let k_filt_cmd = vec![0xFF, 0xAA, 0x25, kfilt_value_bytes[0], kfilt_value_bytes[1]];
+        self.write_command(&k_filt_cmd)?;
         Ok(())
     }
 
@@ -366,6 +374,7 @@ pub enum ImuCommand {
     Stop,
     SetFrequency(ImuFrequency),
     SetAccFilter(u32),
+    SetKalmanFilter(u32),
 }
 
 impl HiwonderReader {
@@ -436,6 +445,11 @@ impl HiwonderReader {
                                 eprintln!("Failed to set acc filter: {}", e);
                             }
                         }
+                        ImuCommand::SetKalmanFilter(kfilt_value) => {
+                            if let Err(e) = imu.set_kfilter(kfilt_value) {
+                                eprintln!("Failed to set k filter: {}", e);
+                            }
+                        }
                     }
                 }
 
@@ -480,6 +494,12 @@ impl HiwonderReader {
     pub fn set_acc_filter(&self, filt_value: u32) -> Result<(), ImuError> {
         self.command_tx
             .send(ImuCommand::SetAccFilter(filt_value))
+            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+    }
+
+    pub fn set_kfilter(&self, kfilt_value: u32) -> Result<(), ImuError> {
+        self.command_tx
+            .send(ImuCommand::SetKalmanFilter(kfilt_value))
             .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
     }
 
