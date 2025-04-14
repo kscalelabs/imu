@@ -14,8 +14,8 @@ fn main() -> io::Result<()> {
         Err(e) => println!("Failed to set frequency: {}", e),
     }
 
-    match reader.set_acc_filter(9999) {
-        Ok(_) => println!("Successfully set acc filter to 9999"),
+    match reader.set_acc_filter(500) {
+        Ok(_) => println!("Successfully set acc filter to 500"),
         Err(e) => println!("Failed to set acc filter: {}", e),
     }
 

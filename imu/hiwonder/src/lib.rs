@@ -127,25 +127,33 @@ impl IMU {
         let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
         let config_cmd = vec![0xFF, 0xAA, 0x02, 0x0E, 0x02];
         let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
-
+        
         // Alternative:
         // let mut packet = Vec::with_capacity(5 + data.len());
         // packet.push(0x55); // many of these...
         // self.port.write_all(&packet)
-
+        
         // Send commands in sequence.
-        self.write_command(&unlock_cmd)?;
-        self.write_command(&config_cmd)?;
-        self.write_command(&save_cmd)?;
+        self.port.write_all(&unlock_cmd)?;
+        self.port.write_all(&config_cmd)?;
+        self.port.write_all(&save_cmd)?;
 
         // Set IMU frequency and acc filter to a reasonable default.
         self.set_frequency(ImuFrequency::Hz100)?;
+        self.set_acc_filter(500)?;
         Ok(())
     }
 
     fn write_command(&mut self, command: &[u8]) -> Result<(), ImuError> {
+        let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
+        let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
+        self.port.write_all(&unlock_cmd)?;
+        // Sleep after unlock
+        std::thread::sleep(Duration::from_millis(30));
         self.port.write_all(command).map_err(ImuError::WriteError)?;
         // 200 hz -> 5ms
+        std::thread::sleep(Duration::from_millis(30));
+        self.port.write_all(&save_cmd)?;
         std::thread::sleep(Duration::from_millis(30));
         Ok(())
     }
