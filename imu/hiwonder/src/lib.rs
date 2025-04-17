@@ -99,7 +99,7 @@ pub struct IMU {
 impl IMU {
     pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
         let port = serialport::new(interface, baud_rate)
-            .timeout(Duration::from_millis(500))
+            .timeout(Duration::from_millis(100))
             .open()?;
 
         let mut imu = IMU {
@@ -122,37 +122,50 @@ impl IMU {
     }
 
     fn initialize(&mut self) -> Result<(), ImuError> {
-        // * Set IMU Parameters to Read
-        // Commands as vectors
-        let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
+        self.factory_reset()?;
+
         let config_cmd = vec![0xFF, 0xAA, 0x02, 0x0E, 0x02];
-        let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
-
-        // Alternative:
-        // let mut packet = Vec::with_capacity(5 + data.len());
-        // packet.push(0x55); // many of these...
-        // self.port.write_all(&packet)
-
-        // Send commands in sequence.
-        self.write_command(&unlock_cmd)?;
         self.write_command(&config_cmd)?;
-        self.write_command(&save_cmd)?;
 
-        // Set IMU frequency to a reasonable default.
-        self.set_frequency(ImuFrequency::Hz100)?;
+        std::thread::sleep(Duration::from_millis(10));
+
+        self.set_frequency(ImuFrequency::Hz200)?;
+
+        std::thread::sleep(Duration::from_millis(10));
+
+        Ok(())
+    }
+
+    fn factory_reset(&mut self) -> Result<(), ImuError> {
+        let reset_cmd = vec![0xFF, 0xAA, 0x00, 0x01, 0x00];
+        self.write_command(&reset_cmd)?;
         Ok(())
     }
 
     fn write_command(&mut self, command: &[u8]) -> Result<(), ImuError> {
-        self.port.write_all(command).map_err(ImuError::WriteError)?;
-        // 200 hz -> 5ms
-        std::thread::sleep(Duration::from_millis(30));
+        let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
+        self.port.write_all(&unlock_cmd)?;
+        self.port.flush()?;
+        std::thread::sleep(Duration::from_millis(20));
+        
+        self.port.write_all(command)?;
+        self.port.flush()?;
+        std::thread::sleep(Duration::from_millis(20));
+        
+        let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
+        self.port.write_all(&save_cmd)?;
+        self.port.flush()?;
+        std::thread::sleep(Duration::from_millis(20));
+        
         Ok(())
     }
 
     pub fn set_frequency(&mut self, frequency: ImuFrequency) -> Result<(), ImuError> {
-        let freq_cmd = vec![0xFF, 0xAA, 0x03, frequency.to_byte(), 0x00];
+        let freq_byte = frequency.to_byte();
+        let freq_cmd = vec![0xFF, 0xAA, 0x03, 0x0C, 0x00];
+        // let freq_cmd = vec![0x00, freq_byte, 0x03, 0xAA, 0xFF];
         self.write_command(&freq_cmd)?;
+        std::thread::sleep(Duration::from_millis(10));
         Ok(())
     }
 
@@ -169,6 +182,10 @@ impl IMU {
                 }
             }
             Ok(_) => Ok(None),
+            Err(e) if e.kind() == io::ErrorKind::TimedOut => {
+                // Just a timeout, not a critical error
+                Ok(None)
+            }
             Err(e) => Err(e),
         }
     }
@@ -415,6 +432,7 @@ impl HiwonderReader {
                                 eprintln!("Failed to set frequency: {}", e);
                             }
                         }
+
                     }
                 }
 
@@ -434,7 +452,7 @@ impl HiwonderReader {
 
                 // Sleep for a short duration to prevent busy waiting
                 // Max frequency is 200hz, so 5ms is the max delay
-                thread::sleep(Duration::from_millis(5));
+                thread::sleep(Duration::from_millis(1));
             }
         });
 
