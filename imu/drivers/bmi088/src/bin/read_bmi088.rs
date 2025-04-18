@@ -1,4 +1,4 @@
-use linux_bmi088::{Bmi088Reader, Vector3, ImuReader};
+use linux_bmi088::{Bmi088Reader, ImuReader, Vector3};
 use std::thread;
 use std::time::Duration;
 

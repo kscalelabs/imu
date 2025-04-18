@@ -1,8 +1,8 @@
-use pyo3::prelude::*;
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use imu::{Vector3, Quaternion, ImuData, ImuError, ImuReader};
+use imu::{ImuReader, Quaternion, Vector3};
 
 // Wrap the Vector3 struct
 #[pyclass(name = "Vector3")]
@@ -31,13 +31,21 @@ impl PyVector3 {
 // Convert between Rust and Python types
 impl From<Vector3> for PyVector3 {
     fn from(v: Vector3) -> Self {
-        PyVector3 { x: v.x, y: v.y, z: v.z }
+        PyVector3 {
+            x: v.x,
+            y: v.y,
+            z: v.z,
+        }
     }
 }
 
 impl From<PyVector3> for Vector3 {
     fn from(v: PyVector3) -> Self {
-        Vector3 { x: v.x, y: v.y, z: v.z }
+        Vector3 {
+            x: v.x,
+            y: v.y,
+            z: v.z,
+        }
     }
 }
 
@@ -63,20 +71,33 @@ impl PyQuaternion {
     }
 
     fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("Quaternion(w={}, x={}, y={}, z={})", self.w, self.x, self.y, self.z))
+        Ok(format!(
+            "Quaternion(w={}, x={}, y={}, z={})",
+            self.w, self.x, self.y, self.z
+        ))
     }
 }
 
 // Convert between Rust and Python types
 impl From<Quaternion> for PyQuaternion {
     fn from(q: Quaternion) -> Self {
-        PyQuaternion { w: q.w, x: q.x, y: q.y, z: q.z }
+        PyQuaternion {
+            w: q.w,
+            x: q.x,
+            y: q.y,
+            z: q.z,
+        }
     }
 }
 
 impl From<PyQuaternion> for Quaternion {
     fn from(q: PyQuaternion) -> Self {
-        Quaternion { w: q.w, x: q.x, y: q.y, z: q.z }
+        Quaternion {
+            w: q.w,
+            x: q.x,
+            y: q.y,
+            z: q.z,
+        }
     }
 }
 
@@ -94,7 +115,7 @@ impl PyImuReader {
         match self.reader.get_data() {
             Ok(data) => {
                 let dict = PyDict::new(py);
-                
+
                 if let Some(accel) = data.accelerometer {
                     dict.set_item("accelerometer", PyVector3::from(accel))?;
                 }
@@ -122,16 +143,18 @@ impl PyImuReader {
                 if let Some(cal) = data.calibration_status {
                     dict.set_item("calibration_status", cal)?;
                 }
-                
+
                 Ok(dict.into())
             }
             Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
         }
     }
-    
+
     // Shared method to stop the reader
     fn stop(&self) -> PyResult<()> {
-        self.reader.stop().map_err(|e| PyRuntimeError::new_err(e.to_string()))
+        self.reader
+            .stop()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
 }
 
@@ -139,7 +162,9 @@ impl PyImuReader {
 #[pyfunction]
 fn create_bno055_reader(i2c_device: &str) -> PyResult<PyImuReader> {
     match imu::Bno055Reader::new(i2c_device) {
-        Ok(reader) => Ok(PyImuReader { reader: Box::new(reader) }),
+        Ok(reader) => Ok(PyImuReader {
+            reader: Box::new(reader),
+        }),
         Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
     }
 }
@@ -147,7 +172,9 @@ fn create_bno055_reader(i2c_device: &str) -> PyResult<PyImuReader> {
 #[pyfunction]
 fn create_hiwonder_reader(serial_port: &str, baud_rate: u32) -> PyResult<PyImuReader> {
     match imu::HiwonderReader::new(serial_port, baud_rate) {
-        Ok(reader) => Ok(PyImuReader { reader: Box::new(reader) }),
+        Ok(reader) => Ok(PyImuReader {
+            reader: Box::new(reader),
+        }),
         Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
     }
 }
@@ -155,7 +182,9 @@ fn create_hiwonder_reader(serial_port: &str, baud_rate: u32) -> PyResult<PyImuRe
 #[pyfunction]
 fn create_bmi088_reader(i2c_device: &str) -> PyResult<PyImuReader> {
     match imu::Bmi088Reader::new(i2c_device) {
-        Ok(reader) => Ok(PyImuReader { reader: Box::new(reader) }),
+        Ok(reader) => Ok(PyImuReader {
+            reader: Box::new(reader),
+        }),
         Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
     }
 }
@@ -163,7 +192,9 @@ fn create_bmi088_reader(i2c_device: &str) -> PyResult<PyImuReader> {
 #[pyfunction]
 fn create_hexmove_reader(can_interface: &str, node_id: u8, param_id: u8) -> PyResult<PyImuReader> {
     match imu::HexmoveImuReader::new(can_interface, node_id, param_id) {
-        Ok(reader) => Ok(PyImuReader { reader: Box::new(reader) }),
+        Ok(reader) => Ok(PyImuReader {
+            reader: Box::new(reader),
+        }),
         Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
     }
 }
@@ -174,14 +205,14 @@ fn imu_rs(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyVector3>()?;
     m.add_class::<PyQuaternion>()?;
     m.add_class::<PyImuReader>()?;
-    
+
     m.add_function(wrap_pyfunction!(create_bno055_reader, m)?)?;
-    
+
     m.add_function(wrap_pyfunction!(create_hiwonder_reader, m)?)?;
-    
+
     m.add_function(wrap_pyfunction!(create_bmi088_reader, m)?)?;
-    
+
     m.add_function(wrap_pyfunction!(create_hexmove_reader, m)?)?;
-    
+
     Ok(())
 }

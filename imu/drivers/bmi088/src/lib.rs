@@ -1,15 +1,14 @@
 use byteorder::{ByteOrder, LittleEndian};
 use i2cdev::core::I2CDevice; // Add this import
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
+pub use imu_traits::{ImuData, ImuError, ImuReader, Vector3};
 use log::{debug, error, warn};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-pub use imu_traits::{Vector3, ImuData, ImuReader, ImuError};
 
 mod registers;
 use registers::{AccelRange, AccelRegisters, Constants, GyroRange, GyroRegisters};
-
 
 // Add these constants at the top of the file
 pub const ACCEL_ADDR: u8 = 0x18; // Default BMI088 accelerometer address
@@ -42,31 +41,49 @@ impl Bmi088 {
     pub fn new(i2c_path: &str) -> Result<Self, ImuError> {
         debug!("Initializing Bmi088...");
 
-        let mut accel_i2c = LinuxI2CDevice::new(i2c_path, Constants::AccelI2cAddr as u16).map_err(BmiI2CError)?;
-        let gyro_i2c = LinuxI2CDevice::new(i2c_path, Constants::GyroI2cAddr as u16).map_err(BmiI2CError)?;
+        let mut accel_i2c =
+            LinuxI2CDevice::new(i2c_path, Constants::AccelI2cAddr as u16).map_err(BmiI2CError)?;
+        let gyro_i2c =
+            LinuxI2CDevice::new(i2c_path, Constants::GyroI2cAddr as u16).map_err(BmiI2CError)?;
 
         // Verify accelerometer chip ID.
-        let chip_id = accel_i2c.smbus_read_byte_data(AccelRegisters::ChipId as u8).map_err(BmiI2CError)?;
+        let chip_id = accel_i2c
+            .smbus_read_byte_data(AccelRegisters::ChipId as u8)
+            .map_err(BmiI2CError)?;
         if chip_id != Constants::AccelChipIdValue as u8 {
             return Err(ImuError::DeviceError("Invalid chip ID".to_string()));
         }
         debug!("Bmi088 Accel chip ID verified: 0x{:02X}", chip_id);
 
         // Soft reset, power-up, and configure accelerometer.
-        accel_i2c.smbus_write_byte_data(
-            AccelRegisters::SoftReset as u8,
-            Constants::SoftResetCmd as u8,
-        ).map_err(BmiI2CError)?;
+        accel_i2c
+            .smbus_write_byte_data(
+                AccelRegisters::SoftReset as u8,
+                Constants::SoftResetCmd as u8,
+            )
+            .map_err(BmiI2CError)?;
         thread::sleep(Duration::from_millis(50));
-        accel_i2c.smbus_write_byte_data(AccelRegisters::PowerCtrl as u8, 0x04).map_err(BmiI2CError)?;
-        accel_i2c.smbus_write_byte_data(AccelRegisters::AccConf as u8, 0x80).map_err(BmiI2CError)?;
-        accel_i2c.smbus_write_byte_data(AccelRegisters::AccRange as u8, AccelRange::G3 as u8).map_err(BmiI2CError)?;
+        accel_i2c
+            .smbus_write_byte_data(AccelRegisters::PowerCtrl as u8, 0x04)
+            .map_err(BmiI2CError)?;
+        accel_i2c
+            .smbus_write_byte_data(AccelRegisters::AccConf as u8, 0x80)
+            .map_err(BmiI2CError)?;
+        accel_i2c
+            .smbus_write_byte_data(AccelRegisters::AccRange as u8, AccelRange::G3 as u8)
+            .map_err(BmiI2CError)?;
 
         // Configure gyroscope.
         let mut gyro_i2c = gyro_i2c; // no mutable needed outside this scope
-        gyro_i2c.smbus_write_byte_data(GyroRegisters::PowerMode as u8, 0x00).map_err(BmiI2CError)?;
-        gyro_i2c.smbus_write_byte_data(GyroRegisters::Range as u8, GyroRange::Dps2000 as u8).map_err(BmiI2CError)?;
-        gyro_i2c.smbus_write_byte_data(GyroRegisters::Bandwidth as u8, 0x07).map_err(BmiI2CError)?;
+        gyro_i2c
+            .smbus_write_byte_data(GyroRegisters::PowerMode as u8, 0x00)
+            .map_err(BmiI2CError)?;
+        gyro_i2c
+            .smbus_write_byte_data(GyroRegisters::Range as u8, GyroRange::Dps2000 as u8)
+            .map_err(BmiI2CError)?;
+        gyro_i2c
+            .smbus_write_byte_data(GyroRegisters::Bandwidth as u8, 0x07)
+            .map_err(BmiI2CError)?;
 
         Ok(Bmi088 {
             accel_i2c,
@@ -82,7 +99,8 @@ impl Bmi088 {
         for i in 0..6 {
             buf[i] = self
                 .accel_i2c
-                .smbus_read_byte_data(AccelRegisters::AccelXLsb as u8 + i as u8).map_err(BmiI2CError)?;
+                .smbus_read_byte_data(AccelRegisters::AccelXLsb as u8 + i as u8)
+                .map_err(BmiI2CError)?;
         }
         let scale = match self.accel_range {
             AccelRange::G3 => 3.0 / 32768.0,
@@ -106,7 +124,8 @@ impl Bmi088 {
         for i in 0..6 {
             buf[i] = self
                 .gyro_i2c
-                .smbus_read_byte_data(GyroRegisters::XLsb as u8 + i as u8).map_err(BmiI2CError)?;
+                .smbus_read_byte_data(GyroRegisters::XLsb as u8 + i as u8)
+                .map_err(BmiI2CError)?;
         }
         let scale = match self.gyro_range {
             GyroRange::Dps2000 => 2000.0 / 32768.0,
@@ -129,10 +148,12 @@ impl Bmi088 {
     pub fn read_temperature(&mut self) -> Result<i8, ImuError> {
         let msb = self
             .accel_i2c
-            .smbus_read_byte_data(AccelRegisters::TempMsb as u8).map_err(BmiI2CError)? as i16;
+            .smbus_read_byte_data(AccelRegisters::TempMsb as u8)
+            .map_err(BmiI2CError)? as i16;
         let lsb = self
             .accel_i2c
-            .smbus_read_byte_data(AccelRegisters::TempLsb as u8).map_err(BmiI2CError)? as i16;
+            .smbus_read_byte_data(AccelRegisters::TempLsb as u8)
+            .map_err(BmiI2CError)? as i16;
         let temp_raw = (msb * 8) + (lsb / 32);
         Ok(((temp_raw as f32) * 0.125 + 23.0) as i8)
     }
@@ -250,8 +271,7 @@ impl Bmi088Reader {
 
     /// Resets the BMI088 sensor.
     pub fn reset(&self) -> Result<(), ImuError> {
-        self.command_tx
-            .send(ImuCommand::Reset)?;
+        self.command_tx.send(ImuCommand::Reset)?;
         Ok(())
     }
 
@@ -265,15 +285,12 @@ impl Bmi088Reader {
 impl ImuReader for Bmi088Reader {
     /// Returns the most recent sensor data.
     fn get_data(&self) -> Result<ImuData, ImuError> {
-        Ok(self.data
-            .read()
-            .map(|data| *data)?)
+        Ok(self.data.read().map(|data| *data)?)
     }
 
     /// Stops the reading thread.
     fn stop(&self) -> Result<(), ImuError> {
-        self.command_tx
-            .send(ImuCommand::Stop)?;
+        self.command_tx.send(ImuCommand::Stop)?;
         Ok(())
     }
 }

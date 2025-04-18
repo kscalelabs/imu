@@ -1,4 +1,4 @@
-use hexmove::{HexmoveImuReader, ImuReader, Vector3, Quaternion};
+use hexmove::{HexmoveImuReader, ImuReader, Quaternion, Vector3};
 use std::thread;
 use std::time::Duration;
 

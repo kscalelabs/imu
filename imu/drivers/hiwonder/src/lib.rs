@@ -1,9 +1,9 @@
+pub use imu_traits::{ImuData, ImuError, ImuFrequency, ImuReader, Quaternion, Vector3};
 use serialport;
 use std::io::{self, Read};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-pub use imu_traits::{ImuData, ImuError, ImuReader, Vector3, Quaternion, ImuFrequency};
 
 #[derive(Debug, PartialEq)]
 enum FrameState {
@@ -449,7 +449,9 @@ impl HiwonderReader {
 
         // Wait for initialization result before returning
         rx.recv()
-            .map_err(|_| ImuError::InvalidPacket("Failed to receive initialization result".to_string()))?
+            .map_err(|_| {
+                ImuError::InvalidPacket("Failed to receive initialization result".to_string())
+            })?
             .map_err(|e| e)
     }
 

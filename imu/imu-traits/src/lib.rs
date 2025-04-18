@@ -1,5 +1,5 @@
-use std::error::Error as StdError;
 use serialport;
+use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::sync::mpsc;
@@ -28,7 +28,11 @@ pub struct Quaternion {
 
 impl fmt::Display for Quaternion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Quaternion(w={}, x={}, y={}, z={})", self.w, self.x, self.y, self.z)
+        write!(
+            f,
+            "Quaternion(w={}, x={}, y={}, z={})",
+            self.w, self.x, self.y, self.z
+        )
     }
 }
 

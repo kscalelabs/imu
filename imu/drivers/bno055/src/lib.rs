@@ -3,6 +3,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use i2cdev::core::I2CDevice;
 use i2cdev::linux::LinuxI2CDevice;
 use i2cdev::linux::LinuxI2CError;
+pub use imu_traits::{ImuData, ImuError, ImuReader, Quaternion, Vector3};
 use log::{debug, error, warn};
 pub use registers::OperationMode;
 use registers::{
@@ -13,7 +14,6 @@ use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-pub use imu_traits::{Quaternion, Vector3, ImuError, ImuData, ImuReader};
 
 pub struct BnoI2CError(LinuxI2CError);
 
@@ -39,8 +39,8 @@ impl Bno055 {
     /// # Arguments
     /// * `i2c_bus` - The I2C bus path (e.g., "/dev/i2c-1")
     pub fn new(i2c_bus: &str) -> Result<Self, ImuError> {
-        let i2c = LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr as u16)
-            .map_err(BnoI2CError)?;
+        let i2c =
+            LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr as u16).map_err(BnoI2CError)?;
         let mut bno = Bno055 { i2c };
 
         // Set page 0 before initialization
@@ -60,13 +60,17 @@ impl Bno055 {
 
     fn set_page(&mut self, page: RegisterPage) -> Result<(), ImuError> {
         self.i2c
-            .smbus_write_byte_data(ChipRegisters::PageId as u8, page as u8).map_err(BnoI2CError)?;
+            .smbus_write_byte_data(ChipRegisters::PageId as u8, page as u8)
+            .map_err(BnoI2CError)?;
         Ok(())
     }
 
     fn verify_chip_id(&mut self) -> Result<(), ImuError> {
         self.set_page(RegisterPage::Page0)?;
-        let chip_id = self.i2c.smbus_read_byte_data(ChipRegisters::ChipId as u8).map_err(BnoI2CError)?;
+        let chip_id = self
+            .i2c
+            .smbus_read_byte_data(ChipRegisters::ChipId as u8)
+            .map_err(BnoI2CError)?;
         if Constants::ChipId as u8 != chip_id {
             error!("Invalid chip ID. Expected 0xA0, got {:#x}", chip_id);
             return Err(ImuError::DeviceError("Invalid chip ID".to_string()));
@@ -77,7 +81,8 @@ impl Bno055 {
     pub fn reset(&mut self) -> Result<(), ImuError> {
         self.set_page(RegisterPage::Page0)?;
         self.i2c
-            .smbus_write_byte_data(StatusRegisters::SysTrigger as u8, 0x20).map_err(BnoI2CError)?;
+            .smbus_write_byte_data(StatusRegisters::SysTrigger as u8, 0x20)
+            .map_err(BnoI2CError)?;
         thread::sleep(Duration::from_millis(650));
         Ok(())
     }
@@ -92,7 +97,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((QuaternionRegisters::WLsb as u8) + i as u8).map_err(BnoI2CError)?;
+                .smbus_read_byte_data((QuaternionRegisters::WLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         let scale = 1.0 / ((1 << 14) as f32);
@@ -114,7 +120,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((EulerRegisters::HLsb as u8) + i as u8).map_err(BnoI2CError)?;
+                .smbus_read_byte_data((EulerRegisters::HLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to degrees (scale factor is 16)
@@ -136,7 +143,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((LinearAccelRegisters::XLsb as u8) + i as u8).map_err(BnoI2CError)?;
+                .smbus_read_byte_data((LinearAccelRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to m/s² (scale factor is 100)
@@ -158,7 +166,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((GravityRegisters::XLsb as u8) + i as u8).map_err(BnoI2CError)?;
+                .smbus_read_byte_data((GravityRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         let scale = 1.0 / 100.0;
@@ -176,7 +185,8 @@ impl Bno055 {
     pub fn set_mode(&mut self, mode: OperationMode) -> Result<(), ImuError> {
         self.set_page(RegisterPage::Page0)?;
         self.i2c
-            .smbus_write_byte_data(StatusRegisters::OprMode as u8, mode as u8).map_err(BnoI2CError)?;
+            .smbus_write_byte_data(StatusRegisters::OprMode as u8, mode as u8)
+            .map_err(BnoI2CError)?;
         // Wait for mode switch to complete
         thread::sleep(Duration::from_millis(20));
         Ok(())
@@ -192,7 +202,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((AccelRegisters::XLsb as u8) + i as u8).map_err(BnoI2CError)?;
+                .smbus_read_byte_data((AccelRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to m/s² (scale factor is 100)
@@ -214,7 +225,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((MagRegisters::XLsb as u8) + i as u8).map_err(BnoI2CError)?;
+                .smbus_read_byte_data((MagRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to microTesla
@@ -236,7 +248,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((GyroRegisters::XLsb as u8) + i as u8).map_err(BnoI2CError)?;
+                .smbus_read_byte_data((GyroRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to degrees per second
@@ -254,7 +267,8 @@ impl Bno055 {
         self.set_page(RegisterPage::Page0)?;
         let temp = self
             .i2c
-            .smbus_read_byte_data(StatusRegisters::Temperature as u8).map_err(BnoI2CError)? as i8;
+            .smbus_read_byte_data(StatusRegisters::Temperature as u8)
+            .map_err(BnoI2CError)? as i8;
         Ok(temp)
     }
 
@@ -267,7 +281,8 @@ impl Bno055 {
         self.set_page(RegisterPage::Page0)?;
         let status = self
             .i2c
-            .smbus_read_byte_data(StatusRegisters::CalibStat as u8).map_err(BnoI2CError)?;
+            .smbus_read_byte_data(StatusRegisters::CalibStat as u8)
+            .map_err(BnoI2CError)?;
         Ok(status)
     }
 }
@@ -387,29 +402,24 @@ impl Bno055Reader {
     }
 
     pub fn set_mode(&self, mode: OperationMode) -> Result<(), ImuError> {
-        self.command_tx
-            .send(ImuCommand::SetMode(mode))?;
+        self.command_tx.send(ImuCommand::SetMode(mode))?;
         Ok(())
     }
 
     pub fn reset(&self) -> Result<(), ImuError> {
-        self.command_tx
-            .send(ImuCommand::Reset)?;
+        self.command_tx.send(ImuCommand::Reset)?;
         Ok(())
     }
 }
 
 impl ImuReader for Bno055Reader {
     fn stop(&self) -> Result<(), ImuError> {
-        self.command_tx
-            .send(ImuCommand::Stop)?;
+        self.command_tx.send(ImuCommand::Stop)?;
         Ok(())
     }
 
     fn get_data(&self) -> Result<ImuData, ImuError> {
-        Ok(self.data
-            .read()
-            .map(|data| *data)?)
+        Ok(self.data.read().map(|data| *data)?)
     }
 }
 

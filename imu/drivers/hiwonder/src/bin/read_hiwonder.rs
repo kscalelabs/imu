@@ -1,4 +1,4 @@
-use hiwonder::{HiwonderReader, ImuReader, Vector3, Quaternion, ImuFrequency};
+use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Quaternion, Vector3};
 use std::io;
 use std::thread;
 use std::time::Duration;

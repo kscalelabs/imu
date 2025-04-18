@@ -1,8 +1,8 @@
+pub use imu_traits::{ImuData, ImuError, ImuReader, Quaternion, Vector3};
 use log::error;
 use socketcan::{CanFrame, CanSocket, EmbeddedFrame, ExtendedId, Id, Socket};
 use std::sync::{Arc, RwLock};
 use std::thread;
-pub use imu_traits::{ImuData, ImuError, ImuReader, Quaternion, Vector3};
 
 pub struct HexmoveImuReader {
     socket: Arc<CanSocket>,
@@ -11,11 +11,7 @@ pub struct HexmoveImuReader {
 }
 
 impl HexmoveImuReader {
-    pub fn new(
-        interface: &str,
-        serial_number: u8,
-        model: u8,
-    ) -> Result<Self, ImuError> {
+    pub fn new(interface: &str, serial_number: u8, model: u8) -> Result<Self, ImuError> {
         let socket = Arc::new(CanSocket::open(interface)?);
         let data = Arc::new(RwLock::new(ImuData::default()));
         let running = Arc::new(RwLock::new(true));
@@ -159,7 +155,8 @@ impl HexmoveImuReader {
                                 let qx = f32::from_le_bytes(qx_bytes);
 
                                 if let Ok(mut imu_data) = data.write() {
-                                    let current = imu_data.quaternion.unwrap_or(Quaternion::default());
+                                    let current =
+                                        imu_data.quaternion.unwrap_or(Quaternion::default());
                                     imu_data.quaternion = Some(Quaternion {
                                         w: qw,
                                         x: qx,
@@ -196,7 +193,8 @@ impl HexmoveImuReader {
                                 let qz = f32::from_le_bytes(qz_bytes);
 
                                 if let Ok(mut imu_data) = data.write() {
-                                    let current = imu_data.quaternion.unwrap_or(Quaternion::default());
+                                    let current =
+                                        imu_data.quaternion.unwrap_or(Quaternion::default());
                                     imu_data.quaternion = Some(Quaternion {
                                         w: current.w,
                                         x: current.x,
@@ -227,32 +225,35 @@ impl HexmoveImuReader {
 
     pub fn get_angles(&self) -> Result<(f32, f32, f32), ImuError> {
         let data = self.get_data()?;
-        let euler = data.euler.ok_or(ImuError::ReadError("No euler data".to_string()))?;
-        Ok((
-            euler.x,
-            euler.y,
-            euler.z,
-        ))
+        let euler = data
+            .euler
+            .ok_or(ImuError::ReadError("No euler data".to_string()))?;
+        Ok((euler.x, euler.y, euler.z))
     }
 
     pub fn get_velocities(&self) -> Result<(f32, f32, f32), ImuError> {
         let data = self.get_data()?;
-        let gyro = data.gyroscope.ok_or(ImuError::ReadError("No gyroscope data".to_string()))?;
+        let gyro = data
+            .gyroscope
+            .ok_or(ImuError::ReadError("No gyroscope data".to_string()))?;
         Ok((gyro.x, gyro.y, gyro.z))
     }
 
     pub fn get_accelerations(&self) -> Result<(f32, f32, f32), ImuError> {
         let data = self.get_data()?;
-        let accel = data.accelerometer.ok_or(ImuError::ReadError("No accelerometer data".to_string()))?;
+        let accel = data
+            .accelerometer
+            .ok_or(ImuError::ReadError("No accelerometer data".to_string()))?;
         Ok((accel.x, accel.y, accel.z))
     }
 
     pub fn get_quaternion(&self) -> Result<(f32, f32, f32, f32), ImuError> {
         let data = self.get_data()?;
-        let quaternion = data.quaternion.ok_or(ImuError::ReadError("No quaternion data".to_string()))?;
+        let quaternion = data
+            .quaternion
+            .ok_or(ImuError::ReadError("No quaternion data".to_string()))?;
         Ok((quaternion.w, quaternion.x, quaternion.y, quaternion.z))
     }
-
 }
 
 impl ImuReader for HexmoveImuReader {
