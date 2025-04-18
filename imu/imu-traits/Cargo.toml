@@ -9,22 +9,9 @@ repository.workspace = true
 readme = "README.md"
 
 [lib]
-name = "imu"
+name = "imu_traits"
 crate-type = ["rlib"]
 
 [dependencies]
 log = "0.4"
 serialport="4.7.1"
-hexmove = {path="hexmove", optional=true}
-hiwonder = {path="hiwonder", optional=true}
-linux_bno055 = {path="bno055", optional=true}
-linux_bmi088 = {path="bmi088", optional=true}
-
-[features]
-default = []
-# Define features that enable the optional dependencies
-bno055 = ["dep:linux_bno055"]
-bmi088 = ["dep:linux_bmi088"]
-hiwonder = ["dep:hiwonder"]
-hexmove = ["dep:hexmove"]
-all = ["bno055", "bmi088", "hiwonder", "hexmove"]
