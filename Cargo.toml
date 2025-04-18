@@ -2,11 +2,12 @@
 
 members = [
     "imu",
+    "imu/imu-traits/",
     "imu/bindings",
-    "imu/hexmove",
-    "imu/hiwonder",
-    "imu/bno055",
-    "imu/bmi088",
+    "imu/drivers/hexmove",
+    "imu/drivers/hiwonder",
+    "imu/drivers/bno055",
+    "imu/drivers/bmi088",
 ]
 resolver = "2"
 

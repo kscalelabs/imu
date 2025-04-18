@@ -84,7 +84,7 @@ impl From<PyQuaternion> for Quaternion {
 #[pyclass(name = "ImuReader")]
 struct PyImuReader {
     // We'll use a Box<dyn ImuReader> to allow different implementations
-    reader: Box<dyn ImuReader + Send>,
+    reader: Box<dyn ImuReader + Send + Sync>,
 }
 
 #[pymethods]
@@ -170,7 +170,7 @@ fn create_hexmove_reader(can_interface: &str, node_id: u8, param_id: u8) -> PyRe
 
 // Module initialization
 #[pymodule]
-fn imu_rs(py: Python, m: &PyModule) -> PyResult<()> {
+fn imu_rs(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyVector3>()?;
     m.add_class::<PyQuaternion>()?;
     m.add_class::<PyImuReader>()?;
