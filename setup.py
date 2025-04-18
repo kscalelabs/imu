@@ -2,7 +2,6 @@
 """Setup script for the project."""
 # mypy: disable-error-code="import-untyped"
 
-import os
 from pathlib import Path
 
 import toml
@@ -38,14 +37,14 @@ setup(
     url="https://github.com/kscalelabs/imu",
     rust_extensions=[
         RustExtension(
-            "imu.bindings", # Use target only, path inferred or explicitly set
+            "imu.bindings",  # Use target only, path inferred or explicitly set
             path="imu/bindings/Cargo.toml",
             binding=Binding.PyO3,
-            py_limited_api="auto", # Recommended for PyO3
+            py_limited_api="auto",  # Recommended for PyO3
             # features=["pyo3/extension-module"] # May be needed?
         ),
     ],
-    packages=find_packages(include=["imu", "imu.*"]), # Find packages under imu
+    packages=find_packages(include=["imu", "imu.*"]),  # Find packages under imu
     zip_safe=False,
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -56,4 +55,4 @@ setup(
     include_package_data=True,
     package_data=package_data,
     # No custom cmdclass needed
-) 
+)
