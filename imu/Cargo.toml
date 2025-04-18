@@ -14,10 +14,10 @@ crate-type = ["rlib"]
 
 [dependencies]
 log = "0.4"
-bno055 = { path = "bno055", optional = true }
-bmi088 = { path = "bmi088", optional = true }
-hiwonder = { path = "hiwonder", optional = true }
-hexmove = { path = "hexmove", optional = true }
+bno055 = { version = "0.4.0", optional = true }
+bmi088 = { version = "0.2.1", optional = true }
+hiwonder = { version = "0.3.2", optional = true }
+hexmove = { version = "0.1.6", optional = true }
 
 [features]
 default = []
