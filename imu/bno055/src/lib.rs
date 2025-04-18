@@ -12,7 +12,10 @@ use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+// Import types from parent imu crate
+use imu::{ImuData as BaseImuData, ImuError as BaseImuError, ImuReader as BaseImuReader, Quaternion as BaseQuaternion, Vector3 as BaseVector3};
 
+// Local Error type
 #[derive(Debug)]
 pub enum Error {
     I2c(i2cdev::linux::LinuxI2CError),
@@ -22,33 +25,34 @@ pub enum Error {
     WriteError,
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::I2c(err) => write!(f, "I2C error: {}", err),
-            Error::InvalidChipId => write!(f, "Invalid chip ID"),
-            Error::CalibrationFailed => write!(f, "Calibration failed"),
-            Error::ReadError => write!(f, "Read error"),
-            Error::WriteError => write!(f, "Write error"),
+// Map local Error to BaseImuError
+impl From<Error> for BaseImuError {
+    fn from(err: Error) -> Self {
+        match err {
+            Error::I2c(e) => BaseImuError::DeviceError(format!("I2C error: {}", e)),
+            Error::InvalidChipId => BaseImuError::ConfigurationError("Invalid chip ID".to_string()),
+            Error::CalibrationFailed => BaseImuError::ConfigurationError("Calibration failed".to_string()),
+            Error::ReadError => BaseImuError::ReadError("BNO055 read error".to_string()),
+            Error::WriteError => BaseImuError::WriteError("BNO055 write error".to_string()),
         }
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::I2c(err) => Some(err),
-            _ => None,
-        }
+// Map PoisonError to BaseImuError
+impl<T> From<std::sync::PoisonError<T>> for BaseImuError {
+    fn from(err: std::sync::PoisonError<T>) -> Self {
+        BaseImuError::LockError(format!("Mutex poisoned: {}", err))
     }
 }
 
-impl From<i2cdev::linux::LinuxI2CError> for Error {
-    fn from(err: i2cdev::linux::LinuxI2CError) -> Self {
-        Error::I2c(err)
+// Map SendError to BaseImuError
+impl From<mpsc::SendError<ImuCommand>> for BaseImuError {
+    fn from(err: mpsc::SendError<ImuCommand>) -> Self {
+        BaseImuError::CommandSendError(format!("Failed to send command: {}", err))
     }
 }
 
+// Local data structures (keep for internal use)
 #[derive(Debug, Clone, Copy)]
 pub struct Quaternion {
     pub w: f32,
@@ -59,9 +63,9 @@ pub struct Quaternion {
 
 #[derive(Debug, Clone, Copy)]
 pub struct EulerAngles {
-    pub roll: f32,  // x-axis rotation
-    pub pitch: f32, // y-axis rotation
-    pub yaw: f32,   // z-axis rotation
+    pub roll: f32,
+    pub pitch: f32,
+    pub yaw: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -71,7 +75,7 @@ pub struct Vector3 {
     pub z: f32,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)] // Added Default
 pub struct BnoData {
     pub quaternion: Quaternion,
     pub euler: EulerAngles,
@@ -84,51 +88,10 @@ pub struct BnoData {
     pub calibration_status: u8,
 }
 
-impl Default for BnoData {
-    fn default() -> Self {
-        BnoData {
-            quaternion: Quaternion {
-                w: 0.0,
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            euler: EulerAngles {
-                roll: 0.0,
-                pitch: 0.0,
-                yaw: 0.0,
-            },
-            accelerometer: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            gyroscope: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            magnetometer: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            linear_acceleration: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            gravity: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            temperature: 0,
-            calibration_status: 0,
-        }
-    }
-}
+// Remove explicit Default impl as derive is added
+// impl Default for BnoData { ... }
 
+// Bno055 struct (low-level driver) remains the same
 pub struct Bno055 {
     i2c: LinuxI2CDevice,
 }
@@ -377,18 +340,21 @@ pub struct Bno055Reader {
 }
 
 impl Bno055Reader {
+    /// Constructor returns local Error type for now.
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
+        let imu = Bno055::new(i2c_bus)?;
         let data = Arc::new(RwLock::new(BnoData::default()));
         let (command_tx, command_rx) = mpsc::channel();
 
-        // Synchronously initialize (calibrate) the IMU.
-        // If this fails, the error is propagated immediately.
-        let imu = Bno055::new(i2c_bus)?;
+        let reader = Bno055Reader {
+            data: Arc::clone(&data),
+            command_tx,
+        };
 
-        // Spawn a thread that continuously reads sensor data using the initialized IMU.
-        Self::start_reading_thread_with_imu(imu, Arc::clone(&data), command_rx);
+        // Start the background thread
+        Self::start_reading_thread_with_imu(imu, data, command_rx);
 
-        Ok(Bno055Reader { data, command_tx })
+        Ok(reader)
     }
 
     fn start_reading_thread_with_imu(
@@ -485,36 +451,65 @@ impl Bno055Reader {
         });
     }
 
-    pub fn set_mode(&self, mode: OperationMode) -> Result<(), Error> {
-        self.command_tx
-            .send(ImuCommand::SetMode(mode))
-            .map_err(|_| Error::WriteError)
+    pub fn set_mode(&self, mode: OperationMode) -> Result<(), BaseImuError> {
+        self.command_tx.send(ImuCommand::SetMode(mode))?;
+        Ok(())
     }
 
-    pub fn reset(&self) -> Result<(), Error> {
-        self.command_tx
-            .send(ImuCommand::Reset)
-            .map_err(|_| Error::WriteError)
+    pub fn reset(&self) -> Result<(), BaseImuError> {
+        self.command_tx.send(ImuCommand::Reset)?;
+        Ok(())
     }
 
-    pub fn stop(&self) -> Result<(), Error> {
-        self.command_tx
-            .send(ImuCommand::Stop)
-            .map_err(|_| Error::WriteError)
+    // Rename inherent stop to avoid conflict
+    pub fn stop_local(&self) -> Result<(), BaseImuError> {
+        self.command_tx.send(ImuCommand::Stop)?;
+        Ok(())
     }
 
-    pub fn get_data(&self) -> Result<BnoData, Error> {
-        self.data
-            .read()
-            .map(|data| *data)
-            .map_err(|_| Error::ReadError)
+    // Rename inherent get_data to avoid conflict
+    pub fn get_data_local(&self) -> Result<BnoData, BaseImuError> {
+        Ok(self.data.read()?.clone()) // Propagate lock errors
     }
 }
 
+// Implement Drop using stop_local
 impl Drop for Bno055Reader {
     fn drop(&mut self) {
-        let _ = self.stop();
+        let _ = self.stop_local(); // Ignore error on drop
     }
+}
+
+// Implement the BaseImuReader trait
+impl BaseImuReader for Bno055Reader {
+    /// Retrieves the latest available IMU data, converted to the standard format.
+    fn get_data(&self) -> Result<BaseImuData, BaseImuError> {
+        let local_data = self.data.read()?;
+
+        // Convert local BnoData to BaseImuData
+        let base_data = BaseImuData {
+            accelerometer: Some(BaseVector3 { x: local_data.accelerometer.x, y: local_data.accelerometer.y, z: local_data.accelerometer.z }),
+            gyroscope: Some(BaseVector3 { x: local_data.gyroscope.x, y: local_data.gyroscope.y, z: local_data.gyroscope.z }),
+            magnetometer: Some(BaseVector3 { x: local_data.magnetometer.x, y: local_data.magnetometer.y, z: local_data.magnetometer.z }),
+            quaternion: Some(BaseQuaternion { w: local_data.quaternion.w, x: local_data.quaternion.x, y: local_data.quaternion.y, z: local_data.quaternion.z }),
+            // Use local euler data (roll, pitch, yaw) for BaseVector3 (x, y, z)
+            euler: Some(BaseVector3 { x: local_data.euler.roll, y: local_data.euler.pitch, z: local_data.euler.yaw }),
+            linear_acceleration: Some(BaseVector3 { x: local_data.linear_acceleration.x, y: local_data.linear_acceleration.y, z: local_data.linear_acceleration.z }),
+            gravity: Some(BaseVector3 { x: local_data.gravity.x, y: local_data.gravity.y, z: local_data.gravity.z }),
+            temperature: Some(local_data.temperature as f32),
+        };
+        Ok(base_data)
+    }
+
+    /// Stops the background reading thread.
+    fn stop(&self) -> Result<(), BaseImuError> {
+        self.stop_local()
+    }
+
+    // Note: If the BaseImuReader trait defines other methods like `reset` or `set_mode`,
+    // they would need to be implemented here, likely by calling the inherent methods.
+    // Example:
+    // fn reset(&self) -> Result<(), BaseImuError> { self.reset() }
 }
 
 #[derive(Debug)]

@@ -13,9 +13,18 @@ name = "imu"
 crate-type = ["rlib"]
 
 [dependencies]
-hexmove = "0.1.6"
-hiwonder = "0.3.2"
-linux_bno055 = "0.0.7"
-linux_bmi088 = "0.0.1"
-socketcan = "3.3.0"
 log = "0.4"
+bno055 = { path = "bno055", optional = true }
+bmi088 = { path = "bmi088", optional = true }
+hiwonder = { path = "hiwonder", optional = true }
+hexmove = { path = "hexmove", optional = true }
+
+[features]
+default = []
+# Define features that enable the optional dependencies
+bno055 = ["dep:bno055"]
+bmi088 = ["dep:bmi088"]
+hiwonder = ["dep:hiwonder"]
+hexmove = ["dep:hexmove"]
+# Optional: A feature to enable all IMUs
+full = ["bno055", "bmi088", "hiwonder", "hexmove"]

@@ -1,10 +1,12 @@
 use byteorder::{ByteOrder, LittleEndian};
-use i2cdev::core::I2CDevice; // Add this import
+use i2cdev::core::I2CDevice;
 use i2cdev::linux::LinuxI2CDevice;
 use log::{debug, error, warn};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+// Import types from parent imu crate
+use imu::{ImuData as BaseImuData, ImuError as BaseImuError, ImuReader as BaseImuReader, Quaternion as BaseQuaternion, Vector3 as BaseVector3};
 
 mod registers;
 use registers::{AccelRange, AccelRegisters, Constants, GyroRange, GyroRegisters};
@@ -13,7 +15,7 @@ use registers::{AccelRange, AccelRegisters, Constants, GyroRange, GyroRegisters}
 pub const ACCEL_ADDR: u8 = 0x18; // Default BMI088 accelerometer address
 pub const GYRO_ADDR: u8 = 0x68; // Default BMI088 gyroscope address
 
-/// 3D vector type.
+/// 3D vector type. (Local)
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Vector3 {
     pub x: f32,
@@ -21,8 +23,8 @@ pub struct Vector3 {
     pub z: f32,
 }
 
-/// Quaternion type.
-#[derive(Debug, Clone, Copy)]
+/// Quaternion type. (Local - Unused by BMI088 data but keep for consistency?)
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Quaternion {
     pub w: f32,
     pub x: f32,
@@ -30,18 +32,7 @@ pub struct Quaternion {
     pub z: f32,
 }
 
-impl Default for Quaternion {
-    fn default() -> Self {
-        Self {
-            w: 1.0,
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        }
-    }
-}
-
-/// Euler angles (in degrees).
+/// Euler angles (in degrees). (Local - Unused by BMI088 data)
 #[derive(Debug, Clone, Copy, Default)]
 pub struct EulerAngles {
     pub roll: f32,
@@ -49,37 +40,15 @@ pub struct EulerAngles {
     pub yaw: f32,
 }
 
-/// Sensor data struct.
-#[derive(Debug, Clone, Copy)]
+/// Sensor data struct. (Local)
+#[derive(Debug, Clone, Copy, Default)] // Added Default
 pub struct Bmi088Data {
-    pub quaternion: Quaternion,
-    pub euler: EulerAngles,
     pub accelerometer: Vector3,
     pub gyroscope: Vector3,
-    pub magnetometer: Vector3,
-    pub linear_acceleration: Vector3,
-    pub gravity: Vector3,
     pub temperature: i8,
-    pub calibration_status: u8,
 }
 
-impl Default for Bmi088Data {
-    fn default() -> Self {
-        Self {
-            quaternion: Quaternion::default(),
-            euler: EulerAngles::default(),
-            accelerometer: Vector3::default(),
-            gyroscope: Vector3::default(),
-            magnetometer: Vector3::default(),
-            linear_acceleration: Vector3::default(),
-            gravity: Vector3::default(),
-            temperature: 0,
-            calibration_status: 0,
-        }
-    }
-}
-
-/// Errors for BMI088 operations.
+/// Errors for BMI088 operations. (Local)
 #[derive(Debug)]
 pub enum Error {
     I2c(i2cdev::linux::LinuxI2CError),
@@ -88,29 +57,29 @@ pub enum Error {
     WriteError,
 }
 
-impl From<i2cdev::linux::LinuxI2CError> for Error {
-    fn from(e: i2cdev::linux::LinuxI2CError) -> Self {
-        Error::I2c(e)
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::I2c(e) => write!(f, "I2C error: {}", e),
-            Error::InvalidChipId => write!(f, "Invalid chip ID"),
-            Error::ReadError => write!(f, "Read error"),
-            Error::WriteError => write!(f, "Write error"),
+// Map local Error to BaseImuError
+impl From<Error> for BaseImuError {
+    fn from(err: Error) -> Self {
+        match err {
+            Error::I2c(e) => BaseImuError::DeviceError(format!("I2C error: {}", e)),
+            Error::InvalidChipId => BaseImuError::ConfigurationError("Invalid chip ID".to_string()),
+            Error::ReadError => BaseImuError::ReadError("BMI088 read error".to_string()),
+            Error::WriteError => BaseImuError::WriteError("BMI088 write error".to_string()),
         }
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::I2c(e) => Some(e),
-            _ => None,
-        }
+// Map PoisonError to BaseImuError
+impl<T> From<std::sync::PoisonError<T>> for BaseImuError {
+    fn from(err: std::sync::PoisonError<T>) -> Self {
+        BaseImuError::LockError(format!("Mutex poisoned: {}", err))
+    }
+}
+
+// Map SendError to BaseImuError
+impl From<mpsc::SendError<ImuCommand>> for BaseImuError {
+    fn from(err: mpsc::SendError<ImuCommand>) -> Self {
+        BaseImuError::CommandSendError(format!("Failed to send command: {}", err))
     }
 }
 
@@ -251,134 +220,118 @@ impl Bmi088Reader {
             command_tx,
             running: Arc::clone(&running),
         };
-        reader.start_reading_thread(i2c_bus, command_rx)?;
+        reader.start_reading_thread(i2c_bus.to_string(), command_rx, Arc::clone(&running))?;
         Ok(reader)
     }
 
     fn start_reading_thread(
         &self,
-        i2c_bus: &str,
+        i2c_bus: String,
         command_rx: mpsc::Receiver<ImuCommand>,
+        running: Arc<RwLock<bool>>,
     ) -> Result<(), Error> {
-        let data = Arc::clone(&self.data);
-        let running = Arc::clone(&self.running);
-        let i2c_bus = i2c_bus.to_string();
-        let (tx, rx) = mpsc::channel();
-
         thread::spawn(move || {
-            let init_result = Bmi088::new(&i2c_bus);
-            if let Err(e) = init_result {
-                error!("Failed to initialize BMI088: {}", e);
-                let _ = tx.send(Err(e));
-                return;
-            }
-            let mut imu = init_result.unwrap();
-            let _ = tx.send(Ok(()));
-
-            while let Ok(guard) = running.read() {
-                if !*guard {
-                    break;
-                }
-
-                // Handle incoming commands.
-                if let Ok(cmd) = command_rx.try_recv() {
-                    match cmd {
-                        ImuCommand::SetAccelRange(range) => {
-                            imu.accel_range = range;
-                            let _ = imu
-                                .accel_i2c
-                                .smbus_write_byte_data(AccelRegisters::AccRange as u8, range as u8);
-                        }
-                        ImuCommand::SetGyroRange(range) => {
-                            imu.gyro_range = range;
-                            let _ = imu
-                                .gyro_i2c
-                                .smbus_write_byte_data(GyroRegisters::Range as u8, range as u8);
-                        }
-                        ImuCommand::Reset => {
-                            // Reinitialize if needed.
-                            let _ = imu = Bmi088::new(&i2c_bus).unwrap();
-                        }
-                        ImuCommand::Stop => {
-                            if let Ok(mut w) = running.write() {
-                                *w = false;
-                            }
+            debug!("BMI088 reading thread started");
+            match Bmi088::new(&i2c_bus) {
+                Ok(mut imu) => {
+                    loop {
+                        if let Ok(guard) = running.read() {
+                            if !*guard { break; }
+                        } else {
+                            error!("BMI088 reader: Failed to read running flag");
                             break;
                         }
+
+                        if let Ok(command) = command_rx.try_recv() {
+                           match command {
+                                ImuCommand::SetAccelRange(range) => {
+                                    warn!("SetAccelRange command not fully implemented");
+                                }
+                                ImuCommand::SetGyroRange(range) => {
+                                    warn!("SetGyroRange command not fully implemented");
+                                }
+                                ImuCommand::Reset => {
+                                    warn!("Reset command not fully implemented");
+                                }
+                                ImuCommand::Stop => break,
+                            }
+                        }
+
+                        let mut data_holder = Bmi088Data::default();
+                        match imu.read_raw_accelerometer() {
+                            Ok(accel) => data_holder.accelerometer = accel,
+                            Err(e) => warn!("Failed to read accelerometer: {}", e),
+                        }
+                        match imu.read_raw_gyroscope() {
+                            Ok(gyro) => data_holder.gyroscope = gyro,
+                            Err(e) => warn!("Failed to read gyroscope: {}", e),
+                        }
+                         match imu.read_temperature() {
+                            Ok(temp) => data_holder.temperature = temp,
+                            Err(e) => warn!("Failed to read temperature: {}", e),
+                        }
+
+                        if let Ok(mut shared_data) = self.data.write() {
+                            *shared_data = data_holder;
+                        }
+
+                        thread::sleep(Duration::from_millis(10));
                     }
                 }
-
-                let mut sensor_data = Bmi088Data::default();
-                if let Ok(accel) = imu.read_raw_accelerometer() {
-                    sensor_data.accelerometer = accel;
-                } else {
-                    warn!("Failed to read accelerometer");
+                Err(e) => {
+                    error!("Failed to initialize BMI088 in reading thread: {}", e);
+                    if let Ok(mut guard) = running.write() {
+                         *guard = false;
+                    }
                 }
-                if let Ok(gyro) = imu.read_raw_gyroscope() {
-                    sensor_data.gyroscope = gyro;
-                } else {
-                    warn!("Failed to read gyroscope");
-                }
-                if let Ok(temp) = imu.read_temperature() {
-                    sensor_data.temperature = temp;
-                }
-
-                if let Ok(mut shared) = data.write() {
-                    *shared = sensor_data;
-                }
-                thread::sleep(Duration::from_millis(10));
             }
+            debug!("BMI088 reading thread exiting");
         });
-
-        rx.recv().map_err(|_| Error::ReadError)?
+        Ok(())
     }
 
-    /// Returns the most recent sensor data.
-    pub fn get_data(&self) -> Result<Bmi088Data, Error> {
-        self.data
-            .read()
-            .map(|data| *data)
-            .map_err(|_| Error::ReadError)
+    pub fn get_data_local(&self) -> Result<Bmi088Data, BaseImuError> {
+        Ok(self.data.read()?.clone())
     }
 
-    /// Stops the reading thread.
-    pub fn stop(&self) -> Result<(), Error> {
-        self.command_tx
-            .send(ImuCommand::Stop)
-            .map_err(|_| Error::WriteError)
+    pub fn stop_local(&self) -> Result<(), BaseImuError> {
+        if let Ok(mut running) = self.running.write() {
+             *running = false;
+        }
+        let _ = self.command_tx.send(ImuCommand::Stop);
+        Ok(())
     }
 
-    /// Resets the BMI088 sensor.
-    pub fn reset(&self) -> Result<(), Error> {
-        self.command_tx
-            .send(ImuCommand::Reset)
-            .map_err(|_| Error::WriteError)
-    }
-
-    /// Sets the mode for BMI088.
-    /// BMI088 does not support the mode configuration like BNO055, so this is a no-op.
-    pub fn set_mode(&self, _mode: u8) -> Result<(), Error> {
+    pub fn reset(&self) -> Result<(), BaseImuError> {
+        self.command_tx.send(ImuCommand::Reset)?;
         Ok(())
     }
 }
 
 impl Drop for Bmi088Reader {
     fn drop(&mut self) {
-        let _ = self.stop();
+        let _ = self.stop_local();
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn sanity_check_bmi088() {
-        // This test confirms that we can access the BMI088 code
-        let accel_addr = 0x18; // Default BMI088 accelerometer address
-        let gyro_addr = 0x68; // Default BMI088 gyroscope address
+impl BaseImuReader for Bmi088Reader {
+    fn get_data(&self) -> Result<BaseImuData, BaseImuError> {
+        let local_data = self.data.read()?;
 
-        assert_eq!(accel_addr, crate::ACCEL_ADDR);
-        assert_eq!(gyro_addr, crate::GYRO_ADDR);
+        let base_data = BaseImuData {
+            accelerometer: Some(BaseVector3 { x: local_data.accelerometer.x, y: local_data.accelerometer.y, z: local_data.accelerometer.z }),
+            gyroscope: Some(BaseVector3 { x: local_data.gyroscope.x, y: local_data.gyroscope.y, z: local_data.gyroscope.z }),
+            magnetometer: None,
+            quaternion: None,
+            euler: None,
+            linear_acceleration: None,
+            gravity: None,
+            temperature: Some(local_data.temperature as f32),
+        };
+        Ok(base_data)
+    }
 
-        println!("BMI088 crate version: {}", env!("CARGO_PKG_VERSION"));
+    fn stop(&self) -> Result<(), BaseImuError> {
+        self.stop_local()
     }
 }

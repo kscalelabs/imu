@@ -2,6 +2,7 @@ use log::error;
 use socketcan::{CanFrame, CanSocket, EmbeddedFrame, ExtendedId, Id, Socket};
 use std::sync::{Arc, RwLock};
 use std::thread;
+use imu::{ImuData as BaseImuData, ImuError as BaseImuError, ImuReader as BaseImuReader, Quaternion, Vector3};
 
 #[derive(Debug, Default, Clone)]
 pub struct ImuData {
@@ -27,6 +28,20 @@ pub struct ImuReader {
     socket: Arc<CanSocket>,
     data: Arc<RwLock<ImuData>>,
     running: Arc<RwLock<bool>>,
+}
+
+impl<T> From<std::sync::PoisonError<T>> for BaseImuError {
+    fn from(err: std::sync::PoisonError<T>) -> Self {
+        BaseImuError::LockError(format!("Mutex poisoned: {}", err))
+    }
+}
+
+fn map_string_err(e: String) -> BaseImuError {
+    if e.contains("lock") {
+        BaseImuError::LockError(e)
+    } else {
+        BaseImuError::Other(e)
+    }
 }
 
 impl ImuReader {
@@ -57,7 +72,6 @@ impl ImuReader {
 
         thread::spawn(move || {
             loop {
-                // Check if we should continue running
                 if let Ok(guard) = running.read() {
                     if !*guard {
                         break;
@@ -75,7 +89,6 @@ impl ImuReader {
                         let base_id =
                             0x0B000000 | (serial_number as u32) << 16 | (model as u32) << 8;
 
-                        // IMU angle data
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB1) {
                             if id == Id::Extended(ext_id) {
                                 let x_angle =
@@ -100,7 +113,6 @@ impl ImuReader {
                             error!("Failed to create extended ID for IMU data");
                         }
 
-                        // IMU velocity data
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB2) {
                             if id == Id::Extended(ext_id) {
                                 let x_velocity =
@@ -125,7 +137,6 @@ impl ImuReader {
                             error!("Failed to create extended ID for IMU velocity data");
                         }
 
-                        // IMU acceleration data (m/s^2)
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB3) {
                             if id == Id::Extended(ext_id) {
                                 let accel_x =
@@ -150,10 +161,8 @@ impl ImuReader {
                             error!("Failed to create extended ID for IMU acceleration data");
                         }
 
-                        // IMU quaternion data
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB4) {
                             if id == Id::Extended(ext_id) {
-                                // Parse quaternion w component from first 4 bytes
                                 let qw_bytes: [u8; 4] = [
                                     received_data[0],
                                     received_data[1],
@@ -162,7 +171,6 @@ impl ImuReader {
                                 ];
                                 let qw = f32::from_le_bytes(qw_bytes);
 
-                                // Parse quaternion x component from last 4 bytes
                                 let qx_bytes: [u8; 4] = [
                                     received_data[4],
                                     received_data[5],
@@ -182,10 +190,8 @@ impl ImuReader {
                             error!("Failed to create extended ID for IMU quaternion data");
                         }
 
-                        // IMU quaternion data
                         if let Some(ext_id) = ExtendedId::new(base_id | 0xB5) {
                             if id == Id::Extended(ext_id) {
-                                // Parse quaternion y component from first 4 bytes
                                 let qy_bytes: [u8; 4] = [
                                     received_data[0],
                                     received_data[1],
@@ -194,7 +200,6 @@ impl ImuReader {
                                 ];
                                 let qy = f32::from_le_bytes(qy_bytes);
 
-                                // Parse quaternion z component from last 4 bytes
                                 let qz_bytes: [u8; 4] = [
                                     received_data[4],
                                     received_data[5],
@@ -228,16 +233,13 @@ impl ImuReader {
         });
     }
 
-    pub fn get_data(&self) -> Result<ImuData, String> {
-        let imu_data = self
-            .data
-            .read()
-            .map_err(|e| format!("Failed to acquire read lock: {}", e))?;
+    pub fn get_data_local(&self) -> Result<ImuData, BaseImuError> {
+        let imu_data = self.data.read()?;
         Ok(imu_data.clone())
     }
 
-    pub fn get_angles(&self) -> Result<(f32, f32, f32), String> {
-        let data = self.get_data()?;
+    pub fn get_angles(&self) -> Result<(f32, f32, f32), BaseImuError> {
+        let data = self.get_data_local()?;
         Ok((
             data.x_angle - data.x_angle_offset,
             data.y_angle - data.y_angle_offset,
@@ -245,26 +247,23 @@ impl ImuReader {
         ))
     }
 
-    pub fn get_velocities(&self) -> Result<(f32, f32, f32), String> {
-        let data = self.get_data()?;
+    pub fn get_velocities(&self) -> Result<(f32, f32, f32), BaseImuError> {
+        let data = self.get_data_local()?;
         Ok((data.x_velocity, data.y_velocity, data.z_velocity))
     }
 
-    pub fn get_accelerations(&self) -> Result<(f32, f32, f32), String> {
-        let data = self.get_data()?;
+    pub fn get_accelerations(&self) -> Result<(f32, f32, f32), BaseImuError> {
+        let data = self.get_data_local()?;
         Ok((data.accel_x, data.accel_y, data.accel_z))
     }
 
-    pub fn get_quaternion(&self) -> Result<(f32, f32, f32, f32), String> {
-        let data = self.get_data()?;
+    pub fn get_quaternion(&self) -> Result<(f32, f32, f32, f32), BaseImuError> {
+        let data = self.get_data_local()?;
         Ok((data.qw, data.qx, data.qy, data.qz))
     }
 
-    pub fn stop(&self) -> Result<(), String> {
-        let mut running = self
-            .running
-            .write()
-            .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+    pub fn stop_local(&self) -> Result<(), BaseImuError> {
+        let mut running = self.running.write()?;
         *running = false;
         Ok(())
     }
@@ -274,51 +273,43 @@ impl ImuReader {
         duration_ms: Option<u64>,
         max_retries: Option<u32>,
         max_variance: Option<f32>,
-    ) -> Result<(), String> {
+    ) -> Result<(), BaseImuError> {
         let duration = duration_ms.unwrap_or(1000);
         let retries = max_retries.unwrap_or(3);
-        let samples = duration / 10; // Sample every 10ms
-        let max_variance = max_variance.unwrap_or(2.0); // Maximum allowed variance in degrees during calibration
+        let samples = duration / 10;
+        let max_variance = max_variance.unwrap_or(2.0);
 
         for attempt in 0..retries {
             let mut x_samples = Vec::new();
             let mut y_samples = Vec::new();
             let mut z_samples = Vec::new();
 
-            // Collect samples
             for _ in 0..samples {
-                let data = self.get_data()?;
+                let data = self.get_data_local()?;
                 x_samples.push(data.x_angle);
                 y_samples.push(data.y_angle);
                 z_samples.push(data.z_angle);
                 thread::sleep(std::time::Duration::from_millis(10));
             }
 
-            // Calculate variance
             let (x_var, y_var, z_var) = calculate_variance(&x_samples, &y_samples, &z_samples);
 
             if x_var > max_variance || y_var > max_variance || z_var > max_variance {
                 if attempt == retries - 1 {
-                    return Err(format!(
+                    return Err(BaseImuError::ConfigurationError(format!(
                         "Calibration failed after {} attempts. IMU must remain still during calibration.",
                         retries
-                    ));
+                    )));
                 }
                 println!("Calibration failed because of high angular variance. Retrying...");
                 continue;
             }
 
-            // Calculate average offsets
             let x_offset = x_samples.iter().sum::<f32>() / samples as f32;
             let y_offset = y_samples.iter().sum::<f32>() / samples as f32;
             let z_offset = z_samples.iter().sum::<f32>() / samples as f32;
 
-            // Update offsets
-
-            let mut imu_data = self
-                .data
-                .write()
-                .map_err(|e| format!("Failed to acquire write lock: {}", e))?;
+            let mut imu_data = self.data.write()?;
 
             imu_data.x_angle_offset = x_offset;
             imu_data.y_angle_offset = y_offset;
@@ -327,7 +318,7 @@ impl ImuReader {
             return Ok(());
         }
 
-        Err("Unexpected calibration failure".to_string())
+        Err(BaseImuError::ConfigurationError("Unexpected calibration failure".to_string()))
     }
 }
 
@@ -345,6 +336,32 @@ fn calculate_variance(x: &[f32], y: &[f32], z: &[f32]) -> (f32, f32, f32) {
 
 impl Drop for ImuReader {
     fn drop(&mut self) {
-        let _ = self.stop();
+        let _ = self.stop_local();
+    }
+}
+
+impl BaseImuReader for ImuReader {
+    fn get_data(&self) -> Result<BaseImuData, BaseImuError> {
+        let local_data = self.data.read()?;
+
+        let base_data = BaseImuData {
+            accelerometer: Some(Vector3 { x: local_data.accel_x, y: local_data.accel_y, z: local_data.accel_z }),
+            gyroscope: Some(Vector3 { x: local_data.x_velocity, y: local_data.y_velocity, z: local_data.z_velocity }),
+            magnetometer: None,
+            quaternion: Some(Quaternion { w: local_data.qw, x: local_data.qx, y: local_data.qy, z: local_data.qz }),
+            euler: Some(Vector3 {
+                x: local_data.x_angle - local_data.x_angle_offset,
+                y: local_data.y_angle - local_data.y_angle_offset,
+                z: local_data.z_angle - local_data.z_angle_offset,
+            }),
+            linear_acceleration: None,
+            gravity: None,
+            temperature: None,
+        };
+        Ok(base_data)
+    }
+
+    fn stop(&self) -> Result<(), BaseImuError> {
+        self.stop_local()
     }
 }

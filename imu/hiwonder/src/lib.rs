@@ -3,6 +3,8 @@ use std::io::{self, Read};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+// Import necessary items from the parent imu crate
+use imu::{ImuData as BaseImuData, ImuError as BaseImuError, ImuReader as BaseImuReader, Quaternion, Vector3};
 
 #[derive(Debug)]
 pub enum ImuError {
@@ -369,7 +371,7 @@ impl IMU {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ImuData {
     pub accelerometer: [f32; 3],
     pub gyroscope: [f32; 3],
@@ -377,19 +379,6 @@ pub struct ImuData {
     pub quaternion: [f32; 4],
     pub magnetometer: [f32; 3],
     pub temperature: f32,
-}
-
-impl Default for ImuData {
-    fn default() -> Self {
-        ImuData {
-            accelerometer: [0.0; 3],
-            gyroscope: [0.0; 3],
-            angle: [0.0; 3],
-            quaternion: [0.0; 4],
-            magnetometer: [0.0; 3],
-            temperature: 0.0,
-        }
-    }
 }
 
 pub struct HiwonderReader {
@@ -517,16 +506,64 @@ impl HiwonderReader {
             .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
     }
 
-    pub fn get_data(&self) -> Result<ImuData, ImuError> {
-        self.data
-            .read()
-            .map(|data| data.clone())
-            .map_err(|_| ImuError::ReadError(io::Error::new(io::ErrorKind::Other, "Lock error")))
+
+    pub fn get_data_local(&self) -> Result<ImuData, BaseImuError> {
+        Ok(self.data.read()?.clone())
     }
 }
 
 impl Drop for HiwonderReader {
     fn drop(&mut self) {
-        let _ = self.stop();
+        if let Ok(mut running) = self.running.write() {
+            *running = false;
+            let _ = self.command_tx.send(ImuCommand::Stop);
+        }
+    }
+}
+
+impl From<ImuError> for BaseImuError {
+    fn from(err: ImuError) -> Self {
+        match err {
+            ImuError::SerialError(e) => BaseImuError::DeviceError(format!("Serial error: {}", e)),
+            ImuError::WriteError(e) => BaseImuError::WriteError(format!("IO Write error: {}", e)),
+            ImuError::ReadError(e) => BaseImuError::ReadError(format!("IO Read error: {}", e)),
+            ImuError::InvalidPacket => BaseImuError::ReadError("Invalid packet received".to_string()),
+        }
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for BaseImuError {
+    fn from(err: std::sync::PoisonError<T>) -> Self {
+        BaseImuError::LockError(format!("Mutex poisoned: {}", err))
+    }
+}
+
+impl From<mpsc::SendError<ImuCommand>> for BaseImuError {
+    fn from(err: mpsc::SendError<ImuCommand>) -> Self {
+        BaseImuError::CommandSendError(format!("Failed to send command: {}", err))
+    }
+}
+
+impl BaseImuReader for HiwonderReader {
+    fn get_data(&self) -> Result<BaseImuData, BaseImuError> {
+        let local_data = self.data.read()?;
+
+        let base_data = BaseImuData {
+            accelerometer: Some(Vector3 { x: local_data.accelerometer[0], y: local_data.accelerometer[1], z: local_data.accelerometer[2] }),
+            gyroscope: Some(Vector3 { x: local_data.gyroscope[0], y: local_data.gyroscope[1], z: local_data.gyroscope[2] }),
+            magnetometer: Some(Vector3 { x: local_data.magnetometer[0], y: local_data.magnetometer[1], z: local_data.magnetometer[2] }),
+            quaternion: Some(Quaternion { w: local_data.quaternion[0], x: local_data.quaternion[1], y: local_data.quaternion[2], z: local_data.quaternion[3] }),
+            euler: Some(Vector3 { x: local_data.angle[0], y: local_data.angle[1], z: local_data.angle[2] }),
+            linear_acceleration: None,
+            gravity: None,
+            temperature: Some(local_data.temperature),
+        };
+        Ok(base_data)
+    }
+
+    fn stop(&self) -> Result<(), BaseImuError> {
+        *self.running.write()? = false;
+        self.command_tx.send(ImuCommand::Stop)?;
+        Ok(())
     }
 }
