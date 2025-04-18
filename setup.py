@@ -20,14 +20,11 @@ with open(cargo_toml_path, "r", encoding="utf-8") as f:
     # Adjust this path if your version is defined differently (e.g., not in workspace)
     version: str = cargo_toml["workspace"]["package"]["version"]
 
-# Read dependencies from pyproject.toml
-pyproject_path = Path(__file__).parent / "pyproject.toml"
-with open(pyproject_path, "r", encoding="utf-8") as f:
-    pyproject_toml = toml.load(f)
-    project_settings = pyproject_toml.get("project", {})
-    optional_dependencies = project_settings.get("optional-dependencies", {})
-    requirements: list[str] = project_settings.get("dependencies", [])
-    requirements_dev: list[str] = optional_dependencies.get("dev", [])
+with open("imu/requirements.txt", "r", encoding="utf-8") as f:
+    requirements: list[str] = f.read().splitlines()
+
+with open("imu/requirements-dev.txt", "r", encoding="utf-8") as f:
+    requirements_dev: list[str] = f.read().splitlines()
 
 # Define package data (simplified)
 package_data = {"imu": ["py.typed"]}
@@ -52,8 +49,8 @@ setup(
     zip_safe=False,
     long_description=long_description,
     long_description_content_type="text/markdown",
-    python_requires=project_settings.get("requires-python", ">=3.9"), # Read from pyproject
-    setup_requires=["setuptools-rust>=1.5.2", "toml"], # Added toml
+    python_requires=">=3.11",
+    setup_requires=["setuptools-rust>=1.5.2", "toml"],
     install_requires=requirements,
     extras_require={"dev": requirements_dev},
     include_package_data=True,
