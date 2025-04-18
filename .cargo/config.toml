@@ -13,6 +13,3 @@ rustflags = [
     "-C", "link-arg=-lpython3.11",
     "-C", "link-arg=-L/usr/lib/python3.11/config-3.11-aarch64-linux-gnu",
 ]
-
-[env]
-PYO3_PYTHON = "/usr/bin/python3"
