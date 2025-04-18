@@ -15,3 +15,6 @@ Link to [IMU](https://www.hiwonder.com/products/imu-module?variant=4037587530555
 - Default Baud Rate: 9600
 - Default USB port: /dev/ttyUSB0
 
+### Notes
+While the datasheet says that the temperature is included in both the accelerometer and magnetometer data packets, we have observed that the temperature is only included in the accelerometer data packet and the magnetometer data packet is padded with zeroes. 
+

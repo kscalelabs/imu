@@ -132,7 +132,11 @@ impl IMU {
         // * Set IMU Parameters to Read
         // Commands as vectors
         let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
-        let config_cmd = vec![0xFF, 0xAA, 0x02, 0x0E, 0x02];
+        // Enable Acceleration (0x02), Gyro (0x04), Angle (0x08), Mag (0x10), and Quaternion (0x0200)
+        // Low byte: 0x02 | 0x04 | 0x08 | 0x10 = 0x1E
+        // High byte: 0x02
+        // let config_cmd = vec![0xFF, 0xAA, 0x02, 0x1E, 0x02];
+        let config_cmd = vec![0xFF, 0xAA, 0x02, 0xFF, 0x07]; // 0x07FF = all bits set
         let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
 
         // Alternative:
@@ -163,7 +167,7 @@ impl IMU {
         Ok(())
     }
 
-    pub fn read_data(&mut self) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3], [f32; 4], [f32; 3], f32)> {
+    pub fn read_data(&mut self) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3], [f32; 4], [f32; 3], f32)>>{
         let mut buffer = vec![0; 1024];
         match self.port.read(&mut buffer) {
             Ok(bytes_read) if bytes_read > 0 => {
@@ -227,6 +231,7 @@ impl IMU {
                     } else {
                         if data == (self.checksum & 0xFF) {
                             self.acc = Self::get_acc(&self.acc_data);
+                            self.temp = Self::get_temperature(&self.acc_data);
                         }
                         self.reset();
                     }
@@ -251,7 +256,6 @@ impl IMU {
                     } else {
                         if data == (self.checksum & 0xFF) {
                             self.mag = Self::get_mag(&self.mag_data);
-                            self.temp = Self::get_temperature(&self.mag_data);
                         }
                         self.reset();
                     }
@@ -317,10 +321,10 @@ impl IMU {
     }
 
     fn get_mag(datahex: &[u8; 8]) -> [f32; 3] {
-        let mag_x = i16::from_le_bytes([datahex[0], datahex[1]]) as f32;
-        let mag_y = i16::from_le_bytes([datahex[2], datahex[3]]) as f32;
-        let mag_z = i16::from_le_bytes([datahex[4], datahex[5]]) as f32;
-        [mag_x, mag_y, mag_z]
+        let mag_x = i16::from_le_bytes([datahex[0], datahex[1]]);
+        let mag_y = i16::from_le_bytes([datahex[2], datahex[3]]);
+        let mag_z = i16::from_le_bytes([datahex[4], datahex[5]]);
+        [mag_x as f32, mag_y as f32, mag_z as f32]
     }
 
     fn get_temperature(datahex: &[u8; 8]) -> f32 {
@@ -362,8 +366,8 @@ pub struct ImuData {
     pub gyroscope: [f32; 3],
     pub angle: [f32; 3],
     pub quaternion: [f32; 4],
-    pub mag: [f32; 3],
-    pub temp: f32,
+    pub magnetometer: [f32; 3],
+    pub temperature: f32,
 }
 
 impl Default for ImuData {
@@ -373,8 +377,8 @@ impl Default for ImuData {
             gyroscope: [0.0; 3],
             angle: [0.0; 3],
             quaternion: [0.0; 4],
-            mag: [0.0; 3],
-            temp: 0.0,
+            magnetometer: [0.0; 3],
+            temperature: 0.0,
         }
     }
 }
@@ -466,8 +470,8 @@ impl HiwonderReader {
                             imu_data.gyroscope = gyro;
                             imu_data.angle = angle;
                             imu_data.quaternion = quat;
-                            imu_data.mag = mag;
-                            imu_data.temp = temp;
+                            imu_data.magnetometer = mag;
+                            imu_data.temperature = temp;
                         }
                     }
                     Ok(None) => (), // No complete data available yet
