@@ -1,4 +1,4 @@
-use hiwonder::{HiwonderReader, ImuData};
+use hiwonder::{HiwonderReader, ImuData, ImuReader};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::sync::{Arc, Mutex};
@@ -8,17 +8,17 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 struct PyImuData {
     #[pyo3(get)]
-    accelerometer: Vec<f32>,
+    accelerometer: Option<Vec<f32>>,
     #[pyo3(get)]
-    gyroscope: Vec<f32>,
+    gyroscope: Option<Vec<f32>>,
     #[pyo3(get)]
-    angle: Vec<f32>,
+    angle: Option<Vec<f32>>,
     #[pyo3(get)]
-    quaternion: Vec<f32>,
+    quaternion: Option<Vec<f32>>,
     #[pyo3(get)]
-    magnetometer: Vec<f32>,
+    magnetometer: Option<Vec<f32>>,
     #[pyo3(get)]
-    temperature: f32,
+    temperature: Option<f32>,
 }
 
 #[gen_stub_pymethods]
@@ -26,12 +26,12 @@ struct PyImuData {
 impl PyImuData {
     #[new]
     fn new(
-        accelerometer: Vec<f32>,
-        gyroscope: Vec<f32>,
-        angle: Vec<f32>,
-        quaternion: Vec<f32>,
-        magnetometer: Vec<f32>,
-        temperature: f32,
+        accelerometer: Option<Vec<f32>>,
+        gyroscope: Option<Vec<f32>>,
+        angle: Option<Vec<f32>>,
+        quaternion: Option<Vec<f32>>,
+        magnetometer: Option<Vec<f32>>,
+        temperature: Option<f32>,
     ) -> Self {
         Self {
             accelerometer,
@@ -47,11 +47,11 @@ impl PyImuData {
 impl From<ImuData> for PyImuData {
     fn from(data: ImuData) -> Self {
         PyImuData {
-            accelerometer: data.accelerometer.to_vec(),
-            gyroscope: data.gyroscope.to_vec(),
-            angle: data.angle.to_vec(),
-            quaternion: data.quaternion.to_vec(),
-            magnetometer: data.magnetometer.to_vec(),
+            accelerometer: data.accelerometer.map(|v| vec![v.x, v.y, v.z]),
+            gyroscope: data.gyroscope.map(|v| vec![v.x, v.y, v.z]),
+            angle: data.euler.map(|v| vec![v.x, v.y, v.z]),
+            quaternion: data.quaternion.map(|v| vec![v.w, v.x, v.y, v.z]),
+            magnetometer: data.magnetometer.map(|v| vec![v.x, v.y, v.z]),
             temperature: data.temperature,
         }
     }

@@ -14,6 +14,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 log = "0.4"
+serialport="4.7.1"
 hexmove = {version="0.1.6", optional=true}
 hiwonder = {version="0.3.2", optional=true}
 linux_bno055 = {version="0.0.7", optional=true}

@@ -1,4 +1,4 @@
-use hexmove::{ImuData as HexmoveImuData, ImuReader as HexmoveImuReader};
+use hexmove::{ImuData as HexmoveImuData, HexmoveImuReader, ImuReader};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::sync::{Arc, Mutex};

@@ -1,4 +1,4 @@
-use linux_bmi088::Bmi088Reader;
+use linux_bmi088::{Bmi088Reader, Vector3, ImuReader};
 use std::thread;
 use std::time::Duration;
 
@@ -8,23 +8,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let data = imu.get_data()?;
-        println!(
-            "Quaternion: w={:.3}, x={:.3}, y={:.3}, z={:.3}",
-            data.quaternion.w, data.quaternion.x, data.quaternion.y, data.quaternion.z
-        );
+        let accel = data.accelerometer.unwrap_or(Vector3::default());
+        let gyro = data.gyroscope.unwrap_or(Vector3::default());
         println!(
             "Accel: x={:.2} g, y={:.2} g, z={:.2} g",
-            data.accelerometer.x, data.accelerometer.y, data.accelerometer.z
+            accel.x, accel.y, accel.z
         );
         println!(
             "Gyro:  x={:.2} °/s, y={:.2} °/s, z={:.2} °/s",
-            data.gyroscope.x, data.gyroscope.y, data.gyroscope.z
+            gyro.x, gyro.y, gyro.z
         );
-        println!(
-            "Euler: roll={:.1}°, pitch={:.1}°, yaw={:.1}°",
-            data.euler.roll, data.euler.pitch, data.euler.yaw
-        );
-        println!("Temp:  {:.1} °C", data.temperature);
+        println!("Temp:  {:.1} °C", data.temperature.unwrap_or(0.0));
         println!("----------------------------------------");
         thread::sleep(Duration::from_millis(100));
     }

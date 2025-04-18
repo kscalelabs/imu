@@ -1,4 +1,4 @@
-use hiwonder::{HiwonderReader, ImuFrequency};
+use hiwonder::{HiwonderReader, ImuReader, Vector3, Quaternion, ImuFrequency};
 use std::io;
 use std::thread;
 use std::time::Duration;
@@ -15,6 +15,11 @@ fn main() -> io::Result<()> {
     loop {
         match reader.get_data() {
             Ok(data) => {
+                let accel = data.accelerometer.unwrap_or(Vector3::default());
+                let gyro = data.gyroscope.unwrap_or(Vector3::default());
+                let angle = data.euler.unwrap_or(Vector3::default());
+                let quaternion = data.quaternion.unwrap_or(Quaternion::default());
+                let magnetometer = data.magnetometer.unwrap_or(Vector3::default());
                 println!(
                     "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
@@ -23,23 +28,23 @@ fn main() -> io::Result<()> {
                      mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      temp:  {: >10.3}\n\
                      ",
-                    data.accelerometer[0],
-                    data.accelerometer[1],
-                    data.accelerometer[2],
-                    data.gyroscope[0],
-                    data.gyroscope[1],
-                    data.gyroscope[2],
-                    data.angle[0],
-                    data.angle[1],
-                    data.angle[2],
-                    data.quaternion[0],
-                    data.quaternion[1],
-                    data.quaternion[2],
-                    data.quaternion[3],
-                    data.magnetometer[0],
-                    data.magnetometer[1],
-                    data.magnetometer[2],
-                    data.temperature,
+                    accel.x,
+                    accel.y,
+                    accel.z,
+                    gyro.x,
+                    gyro.y,
+                    gyro.z,
+                    angle.x,
+                    angle.y,
+                    angle.z,
+                    quaternion.x,
+                    quaternion.y,
+                    quaternion.z,
+                    quaternion.w,
+                    magnetometer.x,
+                    magnetometer.y,
+                    magnetometer.z,
+                    data.temperature.unwrap_or(0.0),
                 );
             }
             Err(e) => eprintln!("Error reading from IMU: {}", e),

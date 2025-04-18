@@ -1,5 +1,8 @@
 use std::error::Error as StdError;
+use serialport;
 use std::fmt;
+use std::io;
+use std::sync::mpsc;
 
 // --- Basic Types ---
 #[derive(Debug, Clone, Copy, Default)]
@@ -48,6 +51,8 @@ pub struct ImuData {
     pub gravity: Option<Vector3>,
     /// Temperature (°C)
     pub temperature: Option<f32>,
+    /// Calibration status
+    pub calibration_status: Option<u8>,
 }
 
 // --- Standard Error Type ---
@@ -67,6 +72,8 @@ pub enum ImuError {
     CommandSendError(String),
     /// Functionality not supported by this specific IMU implementation
     NotSupported(String),
+    /// Invalid packet received from the device
+    InvalidPacket(String),
     /// Catch-all for other errors
     Other(String),
 }
@@ -81,17 +88,66 @@ impl fmt::Display for ImuError {
             ImuError::LockError(s) => write!(f, "Lock error: {}", s),
             ImuError::CommandSendError(s) => write!(f, "Command send error: {}", s),
             ImuError::NotSupported(s) => write!(f, "Not supported: {}", s),
+            ImuError::InvalidPacket(s) => write!(f, "Invalid packet: {}", s),
             ImuError::Other(s) => write!(f, "Other IMU error: {}", s),
         }
     }
 }
 
 impl StdError for ImuError {}
+
+// Add From implementations for common error types
+impl From<io::Error> for ImuError {
+    fn from(err: io::Error) -> Self {
+        ImuError::DeviceError(err.to_string())
+    }
+}
+
+impl From<serialport::Error> for ImuError {
+    fn from(err: serialport::Error) -> Self {
+        ImuError::DeviceError(err.to_string())
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for ImuError {
+    fn from(err: std::sync::PoisonError<T>) -> Self {
+        ImuError::LockError(err.to_string())
+    }
+}
+
+impl<T> From<mpsc::SendError<T>> for ImuError {
+    fn from(err: mpsc::SendError<T>) -> Self {
+        ImuError::CommandSendError(err.to_string())
+    }
+}
+
+impl From<mpsc::RecvError> for ImuError {
+    fn from(err: mpsc::RecvError) -> Self {
+        ImuError::CommandSendError(err.to_string())
+    }
+}
+
 pub trait ImuReader {
     /// Retrieves the latest available IMU data.
     fn get_data(&self) -> Result<ImuData, ImuError>;
 
     fn stop(&self) -> Result<(), ImuError>;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ImuFrequency {
+    Hz0_2,  // 0.2 Hz
+    Hz0_5,  // 0.5 Hz
+    Hz1,    // 1 Hz
+    Hz2,    // 2 Hz
+    Hz5,    // 5 Hz
+    Hz10,   // 10 Hz
+    Hz20,   // 20 Hz
+    Hz50,   // 50 Hz
+    Hz100,  // 100 Hz
+    Hz200,  // 200 Hz
+    Single, // Single reading
+    None,   // No readings
 }
 
 // --- Re-export concrete reader types based on features ---
@@ -104,6 +160,7 @@ pub use bmi088::Bmi088Reader;
 
 #[cfg(feature = "hiwonder")]
 pub use hiwonder::HiwonderReader;
+
 #[cfg(feature = "hiwonder")]
 pub use hiwonder::ImuFrequency as HiwonderImuFrequency;
 
