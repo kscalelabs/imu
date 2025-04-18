@@ -1,0 +1,16 @@
+[package]
+name = "synchronized"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Synchronized reading of multiple IMU sensors"
+license.workspace = true
+repository.workspace = true
+readme = "../README.md"
+
+[dependencies]
+linux_bno055 = "0.0.7"
+hiwonder = "0.3.1"
+nalgebra = "0.32"
+csv = "1.2"
+chrono = "0.4" 

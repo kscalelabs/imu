@@ -7,6 +7,7 @@ members = [
     "imu/hiwonder",
     "imu/bno055",
     "imu/bmi088",
+    "imu/synchronized",
 ]
 resolver = "2"
 

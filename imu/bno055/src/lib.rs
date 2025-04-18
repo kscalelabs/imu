@@ -139,7 +139,8 @@ impl Bno055 {
     /// # Arguments
     /// * `i2c_bus` - The I2C bus path (e.g., "/dev/i2c-1")
     pub fn new(i2c_bus: &str) -> Result<Self, Error> {
-        let i2c = LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr as u16)?;
+        let addr = 0x28;
+        let i2c = LinuxI2CDevice::new(i2c_bus, addr)?;
         let mut bno = Bno055 { i2c };
 
         // Set page 0 before initialization
@@ -196,10 +197,10 @@ impl Bno055 {
 
         let scale = 1.0 / ((1 << 14) as f32);
         Ok(Quaternion {
-            w: (LittleEndian::read_i16(&buf[0..2]) as f32) * scale,
-            x: (LittleEndian::read_i16(&buf[2..4]) as f32) * scale,
-            y: (LittleEndian::read_i16(&buf[4..6]) as f32) * scale,
-            z: (LittleEndian::read_i16(&buf[6..8]) as f32) * scale,
+            x: (LittleEndian::read_i16(&buf[0..2]) as f32) * scale,
+            y: (LittleEndian::read_i16(&buf[2..4]) as f32) * scale,
+            z: (LittleEndian::read_i16(&buf[4..6]) as f32) * scale,
+            w: (LittleEndian::read_i16(&buf[6..8]) as f32) * scale,
         })
     }
 
