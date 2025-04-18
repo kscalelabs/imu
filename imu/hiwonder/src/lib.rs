@@ -167,14 +167,23 @@ impl IMU {
         Ok(())
     }
 
-    pub fn read_data(&mut self) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3], [f32; 4], [f32; 3], f32)>>{
+    pub fn read_data(
+        &mut self,
+    ) -> io::Result<Option<([f32; 3], [f32; 3], [f32; 3], [f32; 4], [f32; 3], f32)>> {
         let mut buffer = vec![0; 1024];
         match self.port.read(&mut buffer) {
             Ok(bytes_read) if bytes_read > 0 => {
                 self.process_data(&buffer[..bytes_read]);
                 // Only return data when we have a complete angle reading
                 if self.frame_state == FrameState::Idle {
-                    Ok(Some((self.acc, self.gyro, self.angle, self.quaternion, self.mag, self.temp)))
+                    Ok(Some((
+                        self.acc,
+                        self.gyro,
+                        self.angle,
+                        self.quaternion,
+                        self.mag,
+                        self.temp,
+                    )))
                 } else {
                     Ok(None)
                 }
@@ -308,7 +317,7 @@ impl IMU {
     }
 
     fn get_gyro(datahex: &[u8; 8]) -> [f32; 3] {
-        let k_gyro = 2000.0 * 3.1415926 / 180.0;
+        let k_gyro = 2000.0 * std::f32::consts::PI / 180.0;
         let gyro_x = i16::from(datahex[1]) << 8 | i16::from(datahex[0]);
         let gyro_y = i16::from(datahex[3]) << 8 | i16::from(datahex[2]);
         let gyro_z = i16::from(datahex[5]) << 8 | i16::from(datahex[4]);
@@ -333,7 +342,7 @@ impl IMU {
     }
 
     fn get_angle(datahex: &[u8; 8]) -> [f32; 3] {
-        let k_angle = 3.1415926;
+        let k_angle = std::f32::consts::PI;
         let angle_x = i16::from(datahex[1]) << 8 | i16::from(datahex[0]);
         let angle_y = i16::from(datahex[3]) << 8 | i16::from(datahex[2]);
         let angle_z = i16::from(datahex[5]) << 8 | i16::from(datahex[4]);
