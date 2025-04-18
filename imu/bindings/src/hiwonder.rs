@@ -15,6 +15,10 @@ struct PyImuData {
     angle: Vec<f32>,
     #[pyo3(get)]
     quaternion: Vec<f32>,
+    #[pyo3(get)]
+    magnetometer: Vec<f32>,
+    #[pyo3(get)]
+    temperature: f32,
 }
 
 #[gen_stub_pymethods]
@@ -26,12 +30,16 @@ impl PyImuData {
         gyroscope: Vec<f32>,
         angle: Vec<f32>,
         quaternion: Vec<f32>,
+        magnetometer: Vec<f32>,
+        temperature: f32,
     ) -> Self {
         Self {
             accelerometer,
             gyroscope,
             angle,
             quaternion,
+            magnetometer,
+            temperature,
         }
     }
 }
@@ -43,6 +51,8 @@ impl From<ImuData> for PyImuData {
             gyroscope: data.gyroscope.to_vec(),
             angle: data.angle.to_vec(),
             quaternion: data.quaternion.to_vec(),
+            magnetometer: data.magnetometer.to_vec(),
+            temperature: data.temperature,
         }
     }
 }

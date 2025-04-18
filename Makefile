@@ -5,9 +5,7 @@
 # ------------------------ #
 
 install:
-	cargo run --bin stub_gen
-	@touch setup.py
-	@uv pip install -e '.[dev]'
+	@pip install -e '.[dev]'
 .PHONY: build
 
 # ------------------------ #

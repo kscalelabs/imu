@@ -1,52 +1,36 @@
-# mypy: disable-error-code="import-untyped"
 #!/usr/bin/env python
 """Setup script for the project."""
+# mypy: disable-error-code="import-untyped"
 
-import glob
 import os
-import shutil
-import subprocess
+from pathlib import Path
 
 import toml
 from setuptools import find_packages, setup
-from setuptools.command.build_ext import build_ext
 from setuptools_rust import Binding, RustExtension
 
+# Read README for long description
 with open("README.md", "r", encoding="utf-8") as f:
     long_description: str = f.read()
 
-with open("Cargo.toml", "r", encoding="utf-8") as f:
+# Read version from root Cargo.toml workspace definition
+cargo_toml_path = Path(__file__).parent / "Cargo.toml"
+with open(cargo_toml_path, "r", encoding="utf-8") as f:
     cargo_toml = toml.load(f)
+    # Adjust this path if your version is defined differently (e.g., not in workspace)
     version: str = cargo_toml["workspace"]["package"]["version"]
 
-with open("imu/requirements.txt", "r", encoding="utf-8") as f:
-    requirements: list[str] = f.read().splitlines()
+# Read dependencies from pyproject.toml
+pyproject_path = Path(__file__).parent / "pyproject.toml"
+with open(pyproject_path, "r", encoding="utf-8") as f:
+    pyproject_toml = toml.load(f)
+    project_settings = pyproject_toml.get("project", {})
+    optional_dependencies = project_settings.get("optional-dependencies", {})
+    requirements: list[str] = project_settings.get("dependencies", [])
+    requirements_dev: list[str] = optional_dependencies.get("dev", [])
 
-with open("imu/requirements-dev.txt", "r", encoding="utf-8") as f:
-    requirements_dev: list[str] = f.read().splitlines()
-
-package_data = [f"imu/{name}" for name in ("py.typed", "requirements.txt", "requirements-dev.txt")]
-package_data.append("Cargo.toml")
-for ext in ("pyi", "rs", "toml", "so"):
-    package_data.extend(glob.iglob(f"imu/**/*.{ext}", recursive=True))
-
-
-class RustBuildExt(build_ext):
-    def run(self) -> None:
-        # Generate the stub file
-        subprocess.run(["cargo", "run", "--bin", "stub_gen"], check=True)
-
-        # Move the generated stub file to parent directory
-        src_file = "imu/bindings/bindings.pyi"
-        dst_file = "imu/bindings.pyi"
-        if os.path.exists(src_file) and not os.path.exists(dst_file):
-            shutil.move(src_file, dst_file)
-        if not os.path.exists(dst_file):
-            raise RuntimeError(f"Failed to generate {dst_file}")
-        if os.path.exists(src_file):
-            os.remove(src_file)
-
-        super().run()
+# Define package data (simplified)
+package_data = {"imu": ["py.typed"]}
 
 
 setup(
@@ -57,20 +41,22 @@ setup(
     url="https://github.com/kscalelabs/imu",
     rust_extensions=[
         RustExtension(
-            target="imu.bindings",
+            "imu.bindings", # Use target only, path inferred or explicitly set
             path="imu/bindings/Cargo.toml",
             binding=Binding.PyO3,
+            py_limited_api="auto", # Recommended for PyO3
+            # features=["pyo3/extension-module"] # May be needed?
         ),
     ],
-    setup_requires=["setuptools-rust"],
+    packages=find_packages(include=["imu", "imu.*"]), # Find packages under imu
     zip_safe=False,
     long_description=long_description,
     long_description_content_type="text/markdown",
-    python_requires=">=3.11",
+    python_requires=project_settings.get("requires-python", ">=3.9"), # Read from pyproject
+    setup_requires=["setuptools-rust>=1.5.2", "toml"], # Added toml
     install_requires=requirements,
     extras_require={"dev": requirements_dev},
     include_package_data=True,
-    package_data={"kscale-imu": package_data},
-    packages=find_packages(include=["imu"]),
-    cmdclass={"build_ext": RustBuildExt},
-)
+    package_data=package_data,
+    # No custom cmdclass needed
+) 

@@ -5,7 +5,6 @@ target-version = ["py311"]
 include = '\.pyi?$'
 
 [tool.pytest.ini_options]
-
 addopts = "-rx -rf -x -q --full-trace"
 testpaths = ["tests"]
 
@@ -14,7 +13,6 @@ markers = [
 ]
 
 [tool.mypy]
-
 pretty = true
 show_column_numbers = true
 show_error_context = true
@@ -31,7 +29,6 @@ incremental = true
 namespace_packages = false
 
 [[tool.mypy.overrides]]
-
 module = [
     "setuptools",
     "setuptools_rust",
@@ -41,20 +38,16 @@ module = [
 ]
 ignore_missing_imports = true
 
-
 disable_error_code = ["no-untyped-def"]
 
 [tool.isort]
-
 profile = "black"
 
 [tool.ruff]
-
 line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-
 select = ["ANN", "D", "E", "F", "I", "N", "PGH", "PLC", "PLE", "PLR", "PLW", "W"]
 
 ignore = [
@@ -68,20 +61,21 @@ ignore = [
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.per-file-ignores]
-
 "__init__.py" = ["E402", "F401", "F403", "F811"]
 "target/package/imu*/__init__.py" = ["N999"]
 
 [tool.ruff.lint.isort]
-
 known-first-party = ["imu", "tests"]
 combine-as-imports = true
 
 [tool.ruff.lint.pydocstyle]
-
 convention = "google"
 
 [build-system]
-
-requires = ["setuptools>=42", "wheel", "setuptools-rust>=1.5.2", "toml"]
+requires = [
+    "setuptools>=61.0",
+    "setuptools-rust>=1.5.2",
+    "toml",
+    "wheel"
+]
 build-backend = "setuptools.build_meta"
