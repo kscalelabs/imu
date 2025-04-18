@@ -149,17 +149,3 @@ pub enum ImuFrequency {
     Single, // Single reading
     None,   // No readings
 }
-
-// --- Re-export concrete reader types based on features ---
-
-#[cfg(feature = "bno055")]
-pub use linux_bno055::Bno055Reader;
-
-#[cfg(feature = "bmi088")]
-pub use linux_bmi088::Bmi088Reader;
-
-#[cfg(feature = "hiwonder")]
-pub use hiwonder::HiwonderReader;
-
-#[cfg(feature = "hexmove")]
-pub use hexmove::HexmoveImuReader;

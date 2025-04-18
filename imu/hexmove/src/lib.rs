@@ -2,7 +2,7 @@ use log::error;
 use socketcan::{CanFrame, CanSocket, EmbeddedFrame, ExtendedId, Id, Socket};
 use std::sync::{Arc, RwLock};
 use std::thread;
-pub use imu::{ImuData, ImuError, ImuReader, Quaternion, Vector3};
+pub use imu_traits::{ImuData, ImuError, ImuReader, Quaternion, Vector3};
 
 pub struct HexmoveImuReader {
     socket: Arc<CanSocket>,

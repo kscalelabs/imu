@@ -13,7 +13,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-pub use imu::{Quaternion, Vector3, ImuError, ImuData, ImuReader};
+pub use imu_traits::{Quaternion, Vector3, ImuError, ImuData, ImuReader};
 
 pub struct BnoI2CError(LinuxI2CError);
 

@@ -5,7 +5,7 @@ use log::{debug, error, warn};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-pub use imu::{Vector3, ImuData, ImuReader, ImuError};
+pub use imu_traits::{Vector3, ImuData, ImuReader, ImuError};
 
 mod registers;
 use registers::{AccelRange, AccelRegisters, Constants, GyroRange, GyroRegisters};

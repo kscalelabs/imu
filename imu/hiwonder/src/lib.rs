@@ -3,7 +3,7 @@ use std::io::{self, Read};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-pub use imu::{ImuData, ImuError, ImuReader, Vector3, Quaternion, ImuFrequency};
+pub use imu_traits::{ImuData, ImuError, ImuReader, Vector3, Quaternion, ImuFrequency};
 
 #[derive(Debug, PartialEq)]
 enum FrameState {

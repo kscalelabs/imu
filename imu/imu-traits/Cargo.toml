@@ -1,9 +1,9 @@
 [package]
-name = "imu"
+name = "imu-traits"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-description = "Interface for interacting with various IMU devices"
+description = "Shared traits for IMU"
 license.workspace = true
 repository.workspace = true
 readme = "README.md"
