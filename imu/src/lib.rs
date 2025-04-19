@@ -1,15 +1,5 @@
-pub mod hexmove {
-    pub use ::hexmove::*;
-}
-
-pub mod hiwonder {
-    pub use ::hiwonder::*;
-}
-
-pub mod bno055 {
-    pub use ::linux_bno055::*;
-}
-
-pub mod bmi088 {
-    pub use ::linux_bmi088::*;
-}
+pub use hexmove::HexmoveImuReader;
+pub use hiwonder::HiwonderReader;
+pub use imu_traits::*;
+pub use linux_bmi088::Bmi088Reader;
+pub use linux_bno055::Bno055Reader;

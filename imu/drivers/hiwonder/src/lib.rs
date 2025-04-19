@@ -1,41 +1,9 @@
+pub use imu_traits::{ImuData, ImuError, ImuFrequency, ImuReader, Quaternion, Vector3};
 use serialport;
 use std::io::{self, Read};
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-
-#[derive(Debug)]
-pub enum ImuError {
-    SerialError(serialport::Error),
-    WriteError(std::io::Error),
-    ReadError(std::io::Error),
-    InvalidPacket,
-}
-
-impl From<std::io::Error> for ImuError {
-    fn from(error: std::io::Error) -> Self {
-        ImuError::WriteError(error)
-    }
-}
-
-impl From<serialport::Error> for ImuError {
-    fn from(error: serialport::Error) -> Self {
-        ImuError::SerialError(error)
-    }
-}
-
-impl std::fmt::Display for ImuError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ImuError::ReadError(e) => write!(f, "Read error: {}", e),
-            ImuError::WriteError(e) => write!(f, "Write error: {}", e),
-            ImuError::SerialError(e) => write!(f, "Serial error: {}", e),
-            ImuError::InvalidPacket => write!(f, "Invalid packet"),
-        }
-    }
-}
-
-impl std::error::Error for ImuError {}
 
 #[derive(Debug, PartialEq)]
 enum FrameState {
@@ -47,23 +15,11 @@ enum FrameState {
     Mag,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ImuFrequency {
-    Hz0_2,  // 0.2 Hz
-    Hz0_5,  // 0.5 Hz
-    Hz1,    // 1 Hz
-    Hz2,    // 2 Hz
-    Hz5,    // 5 Hz
-    Hz10,   // 10 Hz
-    Hz20,   // 20 Hz
-    Hz50,   // 50 Hz
-    Hz100,  // 100 Hz
-    Hz200,  // 200 Hz
-    Single, // Single reading
-    None,   // No readings
+pub trait FrequencyToByte {
+    fn to_byte(&self) -> u8;
 }
 
-impl ImuFrequency {
+impl FrequencyToByte for ImuFrequency {
     fn to_byte(&self) -> u8 {
         match self {
             ImuFrequency::Hz0_2 => 0x01,
@@ -155,7 +111,7 @@ impl IMU {
     }
 
     fn write_command(&mut self, command: &[u8]) -> Result<(), ImuError> {
-        self.port.write_all(command).map_err(ImuError::WriteError)?;
+        self.port.write_all(command).map_err(ImuError::from)?;
         // 200 hz -> 5ms
         std::thread::sleep(Duration::from_millis(30));
         Ok(())
@@ -369,29 +325,6 @@ impl IMU {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ImuData {
-    pub accelerometer: [f32; 3],
-    pub gyroscope: [f32; 3],
-    pub angle: [f32; 3],
-    pub quaternion: [f32; 4],
-    pub magnetometer: [f32; 3],
-    pub temperature: f32,
-}
-
-impl Default for ImuData {
-    fn default() -> Self {
-        ImuData {
-            accelerometer: [0.0; 3],
-            gyroscope: [0.0; 3],
-            angle: [0.0; 3],
-            quaternion: [0.0; 4],
-            magnetometer: [0.0; 3],
-            temperature: 0.0,
-        }
-    }
-}
-
 pub struct HiwonderReader {
     data: Arc<RwLock<ImuData>>,
     command_tx: mpsc::Sender<ImuCommand>,
@@ -475,12 +408,33 @@ impl HiwonderReader {
                 match imu.read_data() {
                     Ok(Some((acc, gyro, angle, quat, mag, temp))) => {
                         if let Ok(mut imu_data) = data.write() {
-                            imu_data.accelerometer = acc;
-                            imu_data.gyroscope = gyro;
-                            imu_data.angle = angle;
-                            imu_data.quaternion = quat;
-                            imu_data.magnetometer = mag;
-                            imu_data.temperature = temp;
+                            imu_data.accelerometer = Some(Vector3 {
+                                x: acc[0],
+                                y: acc[1],
+                                z: acc[2],
+                            });
+                            imu_data.gyroscope = Some(Vector3 {
+                                x: gyro[0],
+                                y: gyro[1],
+                                z: gyro[2],
+                            });
+                            imu_data.euler = Some(Vector3 {
+                                x: angle[0],
+                                y: angle[1],
+                                z: angle[2],
+                            });
+                            imu_data.quaternion = Some(Quaternion {
+                                w: quat[3],
+                                x: quat[0],
+                                y: quat[1],
+                                z: quat[2],
+                            });
+                            imu_data.magnetometer = Some(Vector3 {
+                                x: mag[0],
+                                y: mag[1],
+                                z: mag[2],
+                            });
+                            imu_data.temperature = Some(temp);
                         }
                     }
                     Ok(None) => (), // No complete data available yet
@@ -495,33 +449,34 @@ impl HiwonderReader {
 
         // Wait for initialization result before returning
         rx.recv()
-            .map_err(|_| ImuError::InvalidPacket)?
+            .map_err(|_| {
+                ImuError::InvalidPacket("Failed to receive initialization result".to_string())
+            })?
             .map_err(|e| e)
     }
 
     pub fn reset(&self) -> Result<(), ImuError> {
-        self.command_tx
-            .send(ImuCommand::Reset)
-            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+        self.command_tx.send(ImuCommand::Reset)?;
+        Ok(())
     }
 
     pub fn set_frequency(&self, frequency: ImuFrequency) -> Result<(), ImuError> {
-        self.command_tx
-            .send(ImuCommand::SetFrequency(frequency))
-            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
+        self.command_tx.send(ImuCommand::SetFrequency(frequency))?;
+        Ok(())
+    }
+}
+
+impl ImuReader for HiwonderReader {
+    fn stop(&self) -> Result<(), ImuError> {
+        self.command_tx.send(ImuCommand::Stop)?;
+        Ok(())
     }
 
-    pub fn stop(&self) -> Result<(), ImuError> {
-        self.command_tx
-            .send(ImuCommand::Stop)
-            .map_err(|_| ImuError::WriteError(io::Error::new(io::ErrorKind::Other, "Send error")))
-    }
-
-    pub fn get_data(&self) -> Result<ImuData, ImuError> {
+    fn get_data(&self) -> Result<ImuData, ImuError> {
         self.data
             .read()
             .map(|data| data.clone())
-            .map_err(|_| ImuError::ReadError(io::Error::new(io::ErrorKind::Other, "Lock error")))
+            .map_err(|_| ImuError::ReadError("Lock error".to_string()))
     }
 }
 

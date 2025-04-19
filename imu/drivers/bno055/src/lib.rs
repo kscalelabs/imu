@@ -2,6 +2,8 @@ mod registers;
 use byteorder::{ByteOrder, LittleEndian};
 use i2cdev::core::I2CDevice;
 use i2cdev::linux::LinuxI2CDevice;
+use i2cdev::linux::LinuxI2CError;
+pub use imu_traits::{ImuData, ImuError, ImuReader, Quaternion, Vector3};
 use log::{debug, error, warn};
 pub use registers::OperationMode;
 use registers::{
@@ -13,119 +15,17 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 
-#[derive(Debug)]
-pub enum Error {
-    I2c(i2cdev::linux::LinuxI2CError),
-    InvalidChipId,
-    CalibrationFailed,
-    ReadError,
-    WriteError,
-}
+pub struct BnoI2CError(LinuxI2CError);
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::I2c(err) => write!(f, "I2C error: {}", err),
-            Error::InvalidChipId => write!(f, "Invalid chip ID"),
-            Error::CalibrationFailed => write!(f, "Calibration failed"),
-            Error::ReadError => write!(f, "Read error"),
-            Error::WriteError => write!(f, "Write error"),
-        }
+impl From<LinuxI2CError> for BnoI2CError {
+    fn from(err: LinuxI2CError) -> Self {
+        BnoI2CError(err)
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::I2c(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl From<i2cdev::linux::LinuxI2CError> for Error {
-    fn from(err: i2cdev::linux::LinuxI2CError) -> Self {
-        Error::I2c(err)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Quaternion {
-    pub w: f32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct EulerAngles {
-    pub roll: f32,  // x-axis rotation
-    pub pitch: f32, // y-axis rotation
-    pub yaw: f32,   // z-axis rotation
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Vector3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct BnoData {
-    pub quaternion: Quaternion,
-    pub euler: EulerAngles,
-    pub accelerometer: Vector3,
-    pub gyroscope: Vector3,
-    pub magnetometer: Vector3,
-    pub linear_acceleration: Vector3,
-    pub gravity: Vector3,
-    pub temperature: i8,
-    pub calibration_status: u8,
-}
-
-impl Default for BnoData {
-    fn default() -> Self {
-        BnoData {
-            quaternion: Quaternion {
-                w: 0.0,
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            euler: EulerAngles {
-                roll: 0.0,
-                pitch: 0.0,
-                yaw: 0.0,
-            },
-            accelerometer: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            gyroscope: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            magnetometer: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            linear_acceleration: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            gravity: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            temperature: 0,
-            calibration_status: 0,
-        }
+impl From<BnoI2CError> for ImuError {
+    fn from(err: BnoI2CError) -> Self {
+        ImuError::DeviceError(err.0.to_string())
     }
 }
 
@@ -138,8 +38,9 @@ impl Bno055 {
     ///
     /// # Arguments
     /// * `i2c_bus` - The I2C bus path (e.g., "/dev/i2c-1")
-    pub fn new(i2c_bus: &str) -> Result<Self, Error> {
-        let i2c = LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr as u16)?;
+    pub fn new(i2c_bus: &str) -> Result<Self, ImuError> {
+        let i2c =
+            LinuxI2CDevice::new(i2c_bus, Constants::DefaultI2cAddr as u16).map_err(BnoI2CError)?;
         let mut bno = Bno055 { i2c };
 
         // Set page 0 before initialization
@@ -157,33 +58,38 @@ impl Bno055 {
         Ok(bno)
     }
 
-    fn set_page(&mut self, page: RegisterPage) -> Result<(), Error> {
+    fn set_page(&mut self, page: RegisterPage) -> Result<(), ImuError> {
         self.i2c
             .smbus_write_byte_data(ChipRegisters::PageId as u8, page as u8)
-            .map_err(Error::I2c)
+            .map_err(BnoI2CError)?;
+        Ok(())
     }
 
-    fn verify_chip_id(&mut self) -> Result<(), Error> {
+    fn verify_chip_id(&mut self) -> Result<(), ImuError> {
         self.set_page(RegisterPage::Page0)?;
-        let chip_id = self.i2c.smbus_read_byte_data(ChipRegisters::ChipId as u8)?;
+        let chip_id = self
+            .i2c
+            .smbus_read_byte_data(ChipRegisters::ChipId as u8)
+            .map_err(BnoI2CError)?;
         if Constants::ChipId as u8 != chip_id {
             error!("Invalid chip ID. Expected 0xA0, got {:#x}", chip_id);
-            return Err(Error::InvalidChipId);
+            return Err(ImuError::DeviceError("Invalid chip ID".to_string()));
         }
         Ok(())
     }
 
-    pub fn reset(&mut self) -> Result<(), Error> {
+    pub fn reset(&mut self) -> Result<(), ImuError> {
         self.set_page(RegisterPage::Page0)?;
         self.i2c
-            .smbus_write_byte_data(StatusRegisters::SysTrigger as u8, 0x20)?;
+            .smbus_write_byte_data(StatusRegisters::SysTrigger as u8, 0x20)
+            .map_err(BnoI2CError)?;
         thread::sleep(Duration::from_millis(650));
         Ok(())
     }
 
     /// Returns the current orientation as a quaternion.
     /// The quaternion values are normalized and unitless.
-    pub fn get_quaternion(&mut self) -> Result<Quaternion, Error> {
+    pub fn get_quaternion(&mut self) -> Result<Quaternion, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let mut buf = [0u8; 8];
 
@@ -191,7 +97,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((QuaternionRegisters::WLsb as u8) + i as u8)?;
+                .smbus_read_byte_data((QuaternionRegisters::WLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         let scale = 1.0 / ((1 << 14) as f32);
@@ -205,7 +112,7 @@ impl Bno055 {
 
     /// Returns the current orientation in Euler angles.
     /// All angles (roll, pitch, yaw) are in degrees.
-    pub fn get_euler_angles(&mut self) -> Result<EulerAngles, Error> {
+    pub fn get_euler_angles(&mut self) -> Result<Vector3, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let mut buf = [0u8; 6];
 
@@ -213,21 +120,22 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((EulerRegisters::HLsb as u8) + i as u8)?;
+                .smbus_read_byte_data((EulerRegisters::HLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to degrees (scale factor is 16)
         let scale = 1.0 / 16.0;
-        Ok(EulerAngles {
-            yaw: (LittleEndian::read_i16(&buf[0..2]) as f32) * scale,
-            roll: (LittleEndian::read_i16(&buf[2..4]) as f32) * scale,
-            pitch: (LittleEndian::read_i16(&buf[4..6]) as f32) * scale,
+        Ok(Vector3 {
+            x: (LittleEndian::read_i16(&buf[0..2]) as f32) * scale,
+            y: (LittleEndian::read_i16(&buf[2..4]) as f32) * scale,
+            z: (LittleEndian::read_i16(&buf[4..6]) as f32) * scale,
         })
     }
 
     /// Returns the linear acceleration vector with gravity compensation.
     /// All components (x, y, z) are in meters per second squared (m/s²).
-    pub fn get_linear_acceleration(&mut self) -> Result<Vector3, Error> {
+    pub fn get_linear_acceleration(&mut self) -> Result<Vector3, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let mut buf = [0u8; 6];
 
@@ -235,7 +143,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((LinearAccelRegisters::XLsb as u8) + i as u8)?;
+                .smbus_read_byte_data((LinearAccelRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to m/s² (scale factor is 100)
@@ -249,7 +158,7 @@ impl Bno055 {
 
     /// Returns the gravity vector with linear acceleration compensation.
     /// All components (x, y, z) are in meters per second squared (m/s²).
-    pub fn get_gravity_vector(&mut self) -> Result<Vector3, Error> {
+    pub fn get_gravity_vector(&mut self) -> Result<Vector3, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let mut buf = [0u8; 6];
 
@@ -257,7 +166,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((GravityRegisters::XLsb as u8) + i as u8)?;
+                .smbus_read_byte_data((GravityRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         let scale = 1.0 / 100.0;
@@ -272,10 +182,11 @@ impl Bno055 {
     ///
     /// # Arguments
     /// * `mode` - The operation mode to set.
-    pub fn set_mode(&mut self, mode: OperationMode) -> Result<(), Error> {
+    pub fn set_mode(&mut self, mode: OperationMode) -> Result<(), ImuError> {
         self.set_page(RegisterPage::Page0)?;
         self.i2c
-            .smbus_write_byte_data(StatusRegisters::OprMode as u8, mode as u8)?;
+            .smbus_write_byte_data(StatusRegisters::OprMode as u8, mode as u8)
+            .map_err(BnoI2CError)?;
         // Wait for mode switch to complete
         thread::sleep(Duration::from_millis(20));
         Ok(())
@@ -283,7 +194,7 @@ impl Bno055 {
 
     /// Returns the raw accelerometer readings including gravity.
     /// All components (x, y, z) are in meters per second squared (m/s²).
-    pub fn get_accelerometer(&mut self) -> Result<Vector3, Error> {
+    pub fn get_accelerometer(&mut self) -> Result<Vector3, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let mut buf = [0u8; 6];
 
@@ -291,7 +202,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((AccelRegisters::XLsb as u8) + i as u8)?;
+                .smbus_read_byte_data((AccelRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to m/s² (scale factor is 100)
@@ -305,7 +217,7 @@ impl Bno055 {
 
     /// Returns the magnetometer readings.
     /// All components (x, y, z) are in microTesla (µT).
-    pub fn get_magnetometer(&mut self) -> Result<Vector3, Error> {
+    pub fn get_magnetometer(&mut self) -> Result<Vector3, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let mut buf = [0u8; 6];
 
@@ -313,7 +225,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((MagRegisters::XLsb as u8) + i as u8)?;
+                .smbus_read_byte_data((MagRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to microTesla
@@ -327,7 +240,7 @@ impl Bno055 {
 
     /// Returns the gyroscope readings.
     /// All components (x, y, z) are in degrees per second (°/s).
-    pub fn get_gyroscope(&mut self) -> Result<Vector3, Error> {
+    pub fn get_gyroscope(&mut self) -> Result<Vector3, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let mut buf = [0u8; 6];
 
@@ -335,7 +248,8 @@ impl Bno055 {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = self
                 .i2c
-                .smbus_read_byte_data((GyroRegisters::XLsb as u8) + i as u8)?;
+                .smbus_read_byte_data((GyroRegisters::XLsb as u8) + i as u8)
+                .map_err(BnoI2CError)?;
         }
 
         // Convert to degrees per second
@@ -349,11 +263,12 @@ impl Bno055 {
 
     /// Returns the chip temperature.
     /// Temperature is in degrees Celsius (°C).
-    pub fn get_temperature(&mut self) -> Result<i8, Error> {
+    pub fn get_temperature(&mut self) -> Result<i8, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let temp = self
             .i2c
-            .smbus_read_byte_data(StatusRegisters::Temperature as u8)? as i8;
+            .smbus_read_byte_data(StatusRegisters::Temperature as u8)
+            .map_err(BnoI2CError)? as i8;
         Ok(temp)
     }
 
@@ -362,23 +277,24 @@ impl Bno055 {
     /// Bits 3-2: accelerometer (0-3)
     /// Bits 1-0: magnetometer (0-3)
     /// For each sensor, 0 = uncalibrated, 3 = fully calibrated
-    pub fn get_calibration_status(&mut self) -> Result<u8, Error> {
+    pub fn get_calibration_status(&mut self) -> Result<u8, ImuError> {
         self.set_page(RegisterPage::Page0)?;
         let status = self
             .i2c
-            .smbus_read_byte_data(StatusRegisters::CalibStat as u8)?;
+            .smbus_read_byte_data(StatusRegisters::CalibStat as u8)
+            .map_err(BnoI2CError)?;
         Ok(status)
     }
 }
 
 pub struct Bno055Reader {
-    data: Arc<RwLock<BnoData>>,
+    data: Arc<RwLock<ImuData>>,
     command_tx: mpsc::Sender<ImuCommand>,
 }
 
 impl Bno055Reader {
-    pub fn new(i2c_bus: &str) -> Result<Self, Error> {
-        let data = Arc::new(RwLock::new(BnoData::default()));
+    pub fn new(i2c_bus: &str) -> Result<Self, ImuError> {
+        let data = Arc::new(RwLock::new(ImuData::default()));
         let (command_tx, command_rx) = mpsc::channel();
 
         // Synchronously initialize (calibrate) the IMU.
@@ -393,7 +309,7 @@ impl Bno055Reader {
 
     fn start_reading_thread_with_imu(
         mut imu: Bno055,
-        data: Arc<RwLock<BnoData>>,
+        data: Arc<RwLock<ImuData>>,
         command_rx: mpsc::Receiver<ImuCommand>,
     ) {
         thread::spawn(move || {
@@ -417,58 +333,58 @@ impl Bno055Reader {
                 }
 
                 // Read sensor data and update shared data
-                let mut data_holder = BnoData::default();
+                let mut data_holder = ImuData::default();
 
                 if let Ok(quat) = imu.get_quaternion() {
-                    data_holder.quaternion = quat;
+                    data_holder.quaternion = Some(quat);
                 } else {
                     warn!("Failed to get quaternion");
                 }
 
                 if let Ok(euler) = imu.get_euler_angles() {
-                    data_holder.euler = euler;
+                    data_holder.euler = Some(euler);
                 } else {
                     warn!("Failed to get euler angles");
                 }
 
                 if let Ok(accel) = imu.get_accelerometer() {
-                    data_holder.accelerometer = accel;
+                    data_holder.accelerometer = Some(accel);
                 } else {
                     warn!("Failed to get accelerometer");
                 }
 
                 if let Ok(gyro) = imu.get_gyroscope() {
-                    data_holder.gyroscope = gyro;
+                    data_holder.gyroscope = Some(gyro);
                 } else {
                     warn!("Failed to get gyroscope");
                 }
 
                 if let Ok(mag) = imu.get_magnetometer() {
-                    data_holder.magnetometer = mag;
+                    data_holder.magnetometer = Some(mag);
                 } else {
                     warn!("Failed to get magnetometer");
                 }
 
                 if let Ok(linear_accel) = imu.get_linear_acceleration() {
-                    data_holder.linear_acceleration = linear_accel;
+                    data_holder.linear_acceleration = Some(linear_accel);
                 } else {
                     warn!("Failed to get linear acceleration");
                 }
 
                 if let Ok(gravity) = imu.get_gravity_vector() {
-                    data_holder.gravity = gravity;
+                    data_holder.gravity = Some(gravity);
                 } else {
                     warn!("Failed to get gravity vector");
                 }
 
                 if let Ok(temp) = imu.get_temperature() {
-                    data_holder.temperature = temp;
+                    data_holder.temperature = Some(temp as f32);
                 } else {
                     warn!("Failed to get temperature");
                 }
 
                 if let Ok(status) = imu.get_calibration_status() {
-                    data_holder.calibration_status = status;
+                    data_holder.calibration_status = Some(status);
                 } else {
                     warn!("Failed to get calibration status");
                 }
@@ -485,29 +401,25 @@ impl Bno055Reader {
         });
     }
 
-    pub fn set_mode(&self, mode: OperationMode) -> Result<(), Error> {
-        self.command_tx
-            .send(ImuCommand::SetMode(mode))
-            .map_err(|_| Error::WriteError)
+    pub fn set_mode(&self, mode: OperationMode) -> Result<(), ImuError> {
+        self.command_tx.send(ImuCommand::SetMode(mode))?;
+        Ok(())
     }
 
-    pub fn reset(&self) -> Result<(), Error> {
-        self.command_tx
-            .send(ImuCommand::Reset)
-            .map_err(|_| Error::WriteError)
+    pub fn reset(&self) -> Result<(), ImuError> {
+        self.command_tx.send(ImuCommand::Reset)?;
+        Ok(())
+    }
+}
+
+impl ImuReader for Bno055Reader {
+    fn stop(&self) -> Result<(), ImuError> {
+        self.command_tx.send(ImuCommand::Stop)?;
+        Ok(())
     }
 
-    pub fn stop(&self) -> Result<(), Error> {
-        self.command_tx
-            .send(ImuCommand::Stop)
-            .map_err(|_| Error::WriteError)
-    }
-
-    pub fn get_data(&self) -> Result<BnoData, Error> {
-        self.data
-            .read()
-            .map(|data| *data)
-            .map_err(|_| Error::ReadError)
+    fn get_data(&self) -> Result<ImuData, ImuError> {
+        Ok(self.data.read().map(|data| *data)?)
     }
 }
 
