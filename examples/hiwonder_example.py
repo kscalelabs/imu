@@ -4,6 +4,7 @@ import time
 
 import imu
 
+
 def main() -> None:
     # Create IMU instance
     reader = imu.create_hiwonder("/dev/ttyUSB0", 9600)
