@@ -2,16 +2,15 @@
 
 import time
 
-from imu import HiwonderImu
-
+import imu
 
 def main() -> None:
     # Create IMU instance
-    imu = HiwonderImu("/dev/ttyUSB0", 9600)
+    reader = imu.create_hiwonder("/dev/ttyUSB0", 9600)
 
     try:
         while True:
-            if data := imu.read_data():
+            if data := reader.get_data():
                 print("\033[2J\033[H")  # Clear screen
                 print(f"Acceleration (m/s²): {data.accelerometer}")
                 print(f"Gyroscope (deg/s):  {data.gyroscope}")

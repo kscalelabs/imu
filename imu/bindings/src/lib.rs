@@ -199,7 +199,6 @@ fn create_hexmove_reader(can_interface: &str, node_id: u8, param_id: u8) -> PyRe
     }
 }
 
-// Module initialization
 #[pymodule]
 fn bindings(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyVector3>()?;
