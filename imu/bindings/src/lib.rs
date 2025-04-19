@@ -201,7 +201,7 @@ fn create_hexmove_reader(can_interface: &str, node_id: u8, param_id: u8) -> PyRe
 
 // Module initialization
 #[pymodule]
-fn imu_rs(m: &Bound<PyModule>) -> PyResult<()> {
+fn bindings(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyVector3>()?;
     m.add_class::<PyQuaternion>()?;
     m.add_class::<PyImuReader>()?;
