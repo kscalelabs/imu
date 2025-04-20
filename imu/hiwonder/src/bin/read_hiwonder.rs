@@ -26,27 +26,17 @@ impl Stats {
         }
     }
 
-    fn print_summary(&self) {
+    fn get_stats(&self) -> (f64, f64, f64) {
         let runtime = self.start_time.elapsed().as_secs_f64();
-        
         let duplicate_percent = if self.total_readings > 0 {
             (self.total_duplicates as f64 / self.total_readings as f64) * 100.0
         } else {
             0.0
         };
-        
         let raw_rate = self.total_readings as f64 / runtime;
         let effective_hz = (self.total_readings - self.total_duplicates) as f64 / runtime;
         
-        println!(
-            "Stats: {} duplicates/{} total readings ({:.1}%) over {:.1}s - Effective rate: {:.1} Hz (Raw: {:.1} Hz)",
-            self.total_duplicates,
-            self.total_readings,
-            duplicate_percent,
-            runtime,
-            effective_hz,
-            raw_rate
-        );
+        (duplicate_percent, effective_hz, raw_hz)
     }
 }
 
@@ -91,16 +81,11 @@ fn main() -> io::Result<()> {
                 } else {
                     String::new()
                 };
+
+                let (dup_percent, eff_hz, raw_hz) = stats.get_stats();
                 
-                /*println!(
-                    "timestamp: {}.{:09}{}\n\
-                     acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     angle: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     quaternion: x: {: >10.3} y: {: >10.3} z: {: >10.3} w: {: >10.3}\n\
-                     mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     temp:  {: >10.3}\n\
-                     ",
+                println!(
+                    "t: {}.{:09}{} | acc: [{: >8.3}, {: >8.3}, {: >8.3}] | gyro: [{: >8.3}, {: >8.3}, {: >8.3}] | dups: {}/{} ({:.1}%) | eff_hz: {:.1} (raw: {:.1})",
                     timestamp.as_secs(),
                     timestamp.subsec_nanos(),
                     duplicate_marker,
@@ -110,23 +95,12 @@ fn main() -> io::Result<()> {
                     data.gyroscope[0],
                     data.gyroscope[1],
                     data.gyroscope[2],
-                    data.angle[0],
-                    data.angle[1],
-                    data.angle[2],
-                    data.quaternion[0],
-                    data.quaternion[1],
-                    data.quaternion[2],
-                    data.quaternion[3],
-                    data.magnetometer[0],
-                    data.magnetometer[1],
-                    data.magnetometer[2],
-                    data.temperature,
-                );*/
-
-                // Print running statistics every 100 readings
-                if stats.total_readings % 100 == 0 {
-                    stats.print_summary();
-                }
+                    stats.total_duplicates,
+                    stats.total_readings,
+                    dup_percent,
+                    eff_hz,
+                    raw_hz
+                );
 
                 // Update last reading
                 last_reading = Some(LastReading {
