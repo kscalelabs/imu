@@ -419,7 +419,7 @@ impl Bno055Reader {
                 // Read sensor data and update shared data
                 let mut data_holder = BnoData::default();
 
-                if let Ok(quat) = imu.get_quaternion() {
+                /*if let Ok(quat) = imu.get_quaternion() {
                     data_holder.quaternion = quat;
                 } else {
                     warn!("Failed to get quaternion");
@@ -429,7 +429,7 @@ impl Bno055Reader {
                     data_holder.euler = euler;
                 } else {
                     warn!("Failed to get euler angles");
-                }
+                }*/
 
                 if let Ok(accel) = imu.get_accelerometer() {
                     data_holder.accelerometer = accel;
@@ -443,8 +443,8 @@ impl Bno055Reader {
                     warn!("Failed to get gyroscope");
                 }
 
-                if let Ok(mag) = imu.get_magnetometer() {
-                    data_holder.magnetometer = mag;
+                /*if let Ok(mag) = imu.get_magnetometer() {
+                    #data_holder.magnetometer = mag;
                 } else {
                     warn!("Failed to get magnetometer");
                 }
@@ -462,16 +462,16 @@ impl Bno055Reader {
                 }
 
                 if let Ok(temp) = imu.get_temperature() {
-                    data_holder.temperature = temp;
+                    //data_holder.temperature = temp;
                 } else {
                     warn!("Failed to get temperature");
                 }
 
                 if let Ok(status) = imu.get_calibration_status() {
-                    data_holder.calibration_status = status;
+                    //data_holder.calibration_status = status;
                 } else {
                     warn!("Failed to get calibration status");
-                }
+                }*/
 
                 // Update shared data
                 if let Ok(mut imu_data) = data.write() {
