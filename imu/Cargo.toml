@@ -15,7 +15,7 @@ crate-type = ["rlib"]
 [dependencies]
 log = "0.4"
 serialport="4.7.1"
-imu-traits = {path="imu-traits"}
+imu-traits = "0.0.1"
 hexmove = {path="drivers/hexmove"}
 hiwonder = {path="drivers/hiwonder"}
 linux_bno055 = {path="drivers/bno055"}
