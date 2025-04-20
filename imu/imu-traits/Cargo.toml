@@ -1,6 +1,6 @@
 [package]
 name = "imu-traits"
-version.workspace = true
+version = "0.0.1"
 authors.workspace = true
 edition.workspace = true
 description = "Shared traits for IMU"
