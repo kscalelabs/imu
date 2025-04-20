@@ -5,6 +5,10 @@ on:
     types: [created]
   workflow_dispatch:
     inputs:
+      publish_imu_py:
+        description: "Publish imu-py package"
+        type: boolean
+        default: false
       publish_imu:
         description: "Publish imu package"
         type: boolean
@@ -43,6 +47,7 @@ jobs:
     name: Build ${{ matrix.arch }} wheels
     timeout-minutes: 360
     runs-on: ubuntu-latest
+    if: inputs.publish_imu_py
     strategy:
       matrix:
         arch: [x86_64, aarch64, s390x]
@@ -109,6 +114,7 @@ jobs:
     name: Build Python package (source distribution)
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    if: inputs.publish_imu_py
 
     steps:
       - name: Checkout code
@@ -146,6 +152,7 @@ jobs:
     name: Publish Python wheels
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    if: inputs.publish_imu_py
 
     steps:
       - name: Download all wheels
@@ -168,7 +175,7 @@ jobs:
     name: Build and publish Rust package
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    if: ${{ inputs.publish_imu || inputs.publish_hexmove || inputs.publish_hiwonder }}
+    if: ${{ inputs.publish_imu || inputs.publish_hexmove || inputs.publish_hiwonder || inputs.publish_bmi088 || inputs.publish_bno055 || inputs.publish_traits }}
 
     steps:
       - name: Checkout code
