@@ -5,10 +5,44 @@ import numpy as np
 # Read the CSV file
 df = pd.read_csv('imu_data.csv')
 
+# Enhanced frequency analysis with duplicate detection
+# Create a combined feature to detect any change in sensor readings
+df['data_hash'] = df[['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z']].astype(str).sum(axis=1)
+
+# Detect duplicates and count them
+df['is_duplicate'] = df['data_hash'].shift() == df['data_hash']
+df.loc[0, 'is_duplicate'] = False  # First row is never a duplicate
+
+# Count statistics
+total_readings = len(df)
+total_duplicates = df['is_duplicate'].sum()
+duplicate_percent = (total_duplicates / total_readings) * 100 if total_readings > 0 else 0
+runtime = df['timestamp'].max() - df['timestamp'].min()
+
+# Find indices where data actually changes (non-duplicates)
+data_change_indices = df.index[~df['is_duplicate']].tolist()
+
+# Calculate frequencies
+raw_hz = total_readings / runtime if runtime > 0 else 0
+effective_hz = (total_readings - total_duplicates) / runtime if runtime > 0 else 0
+
+# Calculate average time difference between unique readings
+if len(data_change_indices) > 1:
+    real_time_diff = np.diff([df.iloc[i]['timestamp'] for i in data_change_indices])
+    avg_time_diff = np.mean(real_time_diff)
+    unique_update_hz = 1 / avg_time_diff if avg_time_diff > 0 else 0
+else:
+    unique_update_hz = 0
+
+# Print frequency analysis summary
+print(f"Stats: {total_duplicates} duplicates/{total_readings} total readings ({duplicate_percent:.1f}%) over {runtime:.1f}s")
+print(f"Effective rate: {effective_hz:.1f} Hz (Raw: {raw_hz:.1f} Hz)")
+print(f"Average frequency between unique updates: {unique_update_hz:.2f} Hz")
+
 # Create a figure with 4 subplots
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
-acc_filter_value = input("Enter the acc filter value: ")
-fig.suptitle(f'IMU static on table with AccFilt: {acc_filter_value}', fontsize=16)
+title_str = input("Enter file name: ")
+fig.suptitle(f'IMU Analysis {title_str} - Raw: {raw_hz:.1f} Hz, Effective: {effective_hz:.1f} Hz, Duplicates: {duplicate_percent:.1f}%', fontsize=16)
 
 # Plot accelerometer data
 ax1.plot(df['timestamp'], df['acc_x'], label='X')
@@ -53,48 +87,7 @@ ax3.set_ylabel('Acceleration (m/s²)')
 ax3.legend()
 ax3.grid(True)
 
-# Analyze time periods when gyroscope values are outside ±2 rad/s
-# threshold = 2
-# text_content = []
-# for axis in ['x', 'y', 'z']:
-#     gyro_col = f'gyro_{axis}'
-#     outside_threshold = (df[gyro_col].abs() > threshold)
-#     time_periods = []
-#     start_time = None
-    
-#     for i, (time, is_outside) in enumerate(zip(df['timestamp'], outside_threshold)):
-#         if is_outside and start_time is None:
-#             start_time = time
-#         elif not is_outside and start_time is not None:
-#             time_periods.append((start_time, time))
-#             start_time = None
-    
-#     # Handle case where the last point is outside threshold
-#     if start_time is not None:
-#         time_periods.append((start_time, df['timestamp'].iloc[-1]))
-    
-#     # Add text content for this axis
-#     text_content.append(f"Gyroscope {axis.upper()} outside ±{threshold} rad/s:")
-#     for start, end in time_periods:
-#         text_content.append(f"  {start:.2f}s to {end:.2f}s ({end-start:.2f}s)")
-#     text_content.append("")  # Add empty line between axes
-        
-#     # Add shaded regions for outside threshold periods
-#     for start, end in time_periods:
-#         mask = (df['timestamp'] >= start) & (df['timestamp'] <= end)
-#         ax2.fill_between(df['timestamp'][mask], 
-#                         df[gyro_col][mask], 
-#                         np.where(df[gyro_col][mask] > 0, 2, -2),
-#                         color='red', alpha=0.2)
-
-# # Add text box to the Euler angles position
-# text_str = '\n'.join(text_content)
-# props = dict(boxstyle='round', facecolor='white', alpha=0.8)
-# ax3.text(0.5, 0.5, text_str, fontsize=12, ha='center', va='center',
-#          transform=ax3.transAxes, bbox=props)
-# ax3.axis('off')  # Turn off the axis
-
 # Adjust layout and save the plot
 plt.tight_layout()
-plt.savefig(f'{acc_filter_value}_imu_plots.png')
+plt.savefig(f'{title_str}_imu_plots.png')
 plt.show() 

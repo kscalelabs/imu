@@ -128,6 +128,13 @@ impl IMU {
         let config_cmd = vec![0xFF, 0xAA, 0x02, 0x0E, 0x02];
         let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
         
+
+        //* Set Baud Rate 0x06 115200 0x07 230400  0x02 9600
+        self.write_command(&vec![0xFF, 0xAA, 0x04, 0x06, 0x00])?;
+
+        //* Set Bandwidth 0x03 42hz 
+        self.write_command(&vec![0xFF, 0xAA, 0x1F, 0x04, 0x00])?;
+        
         // Alternative:
         // let mut packet = Vec::with_capacity(5 + data.len());
         // packet.push(0x55); // many of these...
