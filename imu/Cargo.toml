@@ -16,7 +16,7 @@ crate-type = ["rlib"]
 log = "0.4"
 serialport="4.7.1"
 imu-traits = "0.0.1"
-hexmove = {path="drivers/hexmove"}
-hiwonder = {path="drivers/hiwonder"}
-linux_bno055 = {path="drivers/bno055"}
-linux_bmi088 = {path="drivers/bmi088"}
+hexmove = "0.2.0"
+hiwonder = "0.4.0"
+linux_bno055 = "0.1.0"
+linux_bmi088 =  "0.1.0"
