@@ -229,13 +229,13 @@ jobs:
         if: ${{ inputs.publish_bmi088 }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bmi088
+        run: cargo publish -p linux_bmi088
 
       - name: Publish bno055 package to crates.io
         if: ${{ inputs.publish_bno055 }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bno055
+        run: cargo publish -p linux_bno055
 
       - name: Publish imu-traits package to crates.io
         if: ${{ inputs.publish_traits }}
