@@ -30,7 +30,7 @@ package_data = {"imu": ["py.typed", "*.pyi"]}
 
 
 setup(
-    name="kscale-imu",
+    name="imu-py",
     version=version,
     description="Python interface for interacting with IMUs",
     author="Wesley Maa",
