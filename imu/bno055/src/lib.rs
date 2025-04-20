@@ -12,6 +12,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+use std::time::Instant; 
 
 #[derive(Debug)]
 pub enum Error {
@@ -398,7 +399,14 @@ impl Bno055Reader {
     ) {
         thread::spawn(move || {
             debug!("BNO055 reading thread started");
+            
+            // Target 100Hz (10ms period)
+            let target_period = Duration::from_micros(10000);
+            let mut next_update = Instant::now();
+    
             loop {
+                let loop_start = Instant::now();
+    
                 // Process any pending commands
                 if let Ok(command) = command_rx.try_recv() {
                     match command {
@@ -415,7 +423,7 @@ impl Bno055Reader {
                         ImuCommand::Stop => break,
                     }
                 }
-
+    
                 // Read sensor data and update shared data
                 let mut data_holder = BnoData::default();
 
@@ -478,8 +486,29 @@ impl Bno055Reader {
                     *imu_data = data_holder;
                 }
 
-                // IMU sends data at 100 Hz
-                thread::sleep(Duration::from_millis(10));
+                // Calculate time spent in this iteration
+                let elapsed = loop_start.elapsed();
+
+                if elapsed < target_period {
+                    // Sleep until next scheduled update
+                    if let Some(sleep_duration) = target_period.checked_sub(elapsed) {
+                        let sleep_until = next_update + sleep_duration;
+                        if sleep_until > Instant::now() {
+                            thread::sleep(sleep_until.duration_since(Instant::now()));
+                        }
+                    }
+                } else {
+                    // Log if we're missing our target rate
+                    warn!("IMU read cycle took {}us (target: {}us)", 
+                          elapsed.as_micros(), 
+                          target_period.as_micros());
+                }
+
+                next_update += target_period;
+                if next_update < Instant::now() {
+                    // If we've fallen behind, reset our schedule
+                    next_update = Instant::now() + target_period;
+                }
             }
             debug!("BNO055 reading thread exiting");
         });
