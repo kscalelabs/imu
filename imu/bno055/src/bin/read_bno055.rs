@@ -6,7 +6,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new BNO055 reader
     let imu = Bno055Reader::new("/dev/i2c-1")?;
     
-    // Target 50Hz like your Python code
     let target_period = Duration::from_millis(10);
     
     println!("Reading IMU data...");
