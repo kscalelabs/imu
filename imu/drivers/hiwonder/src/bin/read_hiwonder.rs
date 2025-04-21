@@ -4,8 +4,34 @@ use std::thread;
 use std::time::Duration;
 
 fn main() -> io::Result<()> {
-    let reader = HiwonderReader::new("/dev/ttyUSB0", 230400)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let ports_to_try = [
+        "/dev/ttyUSB0",             // Linux
+        "/dev/tty.usbserial-83420", // Mac OS X
+    ];
+
+    let mut reader = None;
+    for port in ports_to_try {
+        match HiwonderReader::new(port, 230400) {
+            Ok(r) => {
+                println!("Successfully connected to {}", port);
+                reader = Some(r);
+                break;
+            }
+            Err(_) => {
+                eprintln!("Failed to connect to {}", port);
+            }
+        }
+    }
+
+    let reader = match reader {
+        Some(r) => r,
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "No valid port found",
+            ))
+        }
+    };
 
     match reader.set_frequency(ImuFrequency::Hz200) {
         Ok(_) => println!("Set frequency to 200hz"),
