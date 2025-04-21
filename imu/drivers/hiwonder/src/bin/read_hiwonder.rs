@@ -4,14 +4,23 @@ use std::thread;
 use std::time::Duration;
 
 fn main() -> io::Result<()> {
-    let ports_to_try = [
-        "/dev/ttyUSB0",             // Linux
-        "/dev/tty.usbserial-83420", // Mac OS X
-    ];
+    let (ports_to_try, baud_rate) = if cfg!(target_os = "linux") {
+        (vec!["/dev/ttyUSB0"], 230400)
+    } else if cfg!(target_os = "macos") {
+        // TODO: This is probably not the best way to do this (can only read
+        // at baud rate 9600) but it is useful for debugging the numerical
+        // values while on a Mac.
+        (vec!["/dev/tty.usbserial-83420"], 9600)
+    } else {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Unsupported OS: {}", std::env::consts::OS),
+        ));
+    };
 
     let mut reader = None;
     for port in ports_to_try {
-        match HiwonderReader::new(port, 230400) {
+        match HiwonderReader::new(&port, baud_rate) {
             Ok(r) => {
                 println!("Successfully connected to {}", port);
                 reader = Some(r);
@@ -35,7 +44,7 @@ fn main() -> io::Result<()> {
 
     match reader.set_frequency(ImuFrequency::Hz200) {
         Ok(_) => println!("Set frequency to 200hz"),
-        Err(e) => println!("Failed to set frequency: {}", e),
+        Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
     }
 
     loop {
