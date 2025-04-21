@@ -10,7 +10,7 @@ license.workspace = true
 
 [dependencies]
 serialport = "4.2.0"
-imu-traits = "0.0.1"
+imu-traits = { path = "../../imu-traits" }
 
 [lib]
 

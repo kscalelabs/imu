@@ -55,6 +55,10 @@ fn main() -> io::Result<()> {
                 let angle = data.euler.unwrap_or(Vector3::default());
                 let quaternion = data.quaternion.unwrap_or(Quaternion::default());
                 let magnetometer = data.magnetometer.unwrap_or(Vector3::default());
+
+                // Computes projected gravity from the quaternion.
+                let gravity = quaternion.rotate(Vector3::new(0.0, 0.0, -1.0));
+
                 println!(
                     "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
@@ -62,6 +66,7 @@ fn main() -> io::Result<()> {
                      quaternion: x: {: >10.3} y: {: >10.3} z: {: >10.3} w: {: >10.3}\n\
                      mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      temp:  {: >10.3}\n\
+                     gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      ",
                     accel.x,
                     accel.y,
@@ -80,6 +85,9 @@ fn main() -> io::Result<()> {
                     magnetometer.y,
                     magnetometer.z,
                     data.temperature.unwrap_or(0.0),
+                    gravity.x,
+                    gravity.y,
+                    gravity.z,
                 );
             }
             Err(e) => eprintln!("Error reading from IMU: {}", e),
