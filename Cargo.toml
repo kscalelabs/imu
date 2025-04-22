@@ -6,6 +6,7 @@ members = [
     "imu/bindings",
     "imu/drivers/hexmove",
     "imu/drivers/hiwonder",
+    "imu/drivers/hiwonder/hiwonder_macros",
     "imu/drivers/bno055",
     "imu/drivers/bmi088",
 ]
