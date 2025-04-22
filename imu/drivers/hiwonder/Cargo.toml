@@ -11,6 +11,8 @@ license.workspace = true
 [dependencies]
 serialport = "4.2.0"
 imu-traits = { path = "../../imu-traits" }
+hiwonder_macros = { path = "hiwonder_macros" }
+bitflags = "2.9.0"
 
 [lib]
 
