@@ -2,7 +2,7 @@
 name = "linux_bmi088"
 readme = "README.md"
 description = "Interface for BMI088 IMU"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 authors = ["Ali Kuwajerwala <ali@kscale.dev>"]
 license.workspace = true
