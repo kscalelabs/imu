@@ -75,7 +75,17 @@ impl IMU {
     }
 
     pub fn set_frequency(&mut self, frequency: ImuFrequency) -> Result<(), ImuError> {
+        self.write_command(&UnlockCommand::new())?;
         self.write_command(&SetFrequencyCommand::new(frequency))?;
+        self.write_command(&SaveCommand::new())?;
+        Ok(())
+    }
+
+    pub fn set_baud_rate(&mut self, baud_rate: u32) -> Result<(), ImuError> {
+        self.write_command(&UnlockCommand::new())?;
+        self.write_command(&SetBaudRateCommand::new(BaudRate::try_from(baud_rate)?))?;
+        self.write_command(&SaveCommand::new())?;
+        self.port.set_baud_rate(baud_rate)?;
         Ok(())
     }
 
@@ -105,6 +115,7 @@ pub enum ImuCommand {
     Reset,
     Stop,
     SetFrequency(ImuFrequency),
+    SetBaudRate(u32),
 }
 
 impl HiwonderReader {
@@ -171,6 +182,11 @@ impl HiwonderReader {
                                 eprintln!("Failed to set frequency: {}", e);
                             }
                         }
+                        ImuCommand::SetBaudRate(baud_rate) => {
+                            if let Err(e) = imu.set_baud_rate(baud_rate) {
+                                eprintln!("Failed to set baud rate: {}", e);
+                            }
+                        }
                     }
                 }
 
@@ -220,8 +236,8 @@ impl HiwonderReader {
                 }
 
                 // Sleep for a short duration to prevent busy waiting
-                // Max frequency is 200hz, so 5ms is the max delay
-                thread::sleep(Duration::from_millis(5));
+                // Max frequency is 200hz (5ms)
+                thread::sleep(Duration::from_millis(4));
             }
         });
 
@@ -238,6 +254,11 @@ impl HiwonderReader {
 
     pub fn set_frequency(&self, frequency: ImuFrequency) -> Result<(), ImuError> {
         self.command_tx.send(ImuCommand::SetFrequency(frequency))?;
+        Ok(())
+    }
+
+    pub fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ImuError> {
+        self.command_tx.send(ImuCommand::SetBaudRate(baud_rate))?;
         Ok(())
     }
 }

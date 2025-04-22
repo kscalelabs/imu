@@ -1,6 +1,6 @@
 use bitflags::bitflags;
 use hiwonder_macros::{BytableCommand, DefaultableCommand};
-use imu_traits::ImuFrequency;
+use imu_traits::{ImuError, ImuFrequency};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -285,5 +285,76 @@ impl SetFrequencyCommand {
 impl Default for SetFrequencyCommand {
     fn default() -> Self {
         Self::new(ImuFrequency::Hz100)
+    }
+}
+
+#[derive(BytableCommand)]
+pub struct SetBaudRateCommand {
+    pub command: Command,
+}
+
+pub enum BaudRate {
+    Baud4800,
+    Baud9600,
+    Baud19200,
+    Baud38400,
+    Baud57600,
+    Baud115200,
+    Baud230400,
+    Baud460800, // Only supported by WT931/JY931/HWT606/HWT906
+    Baud921600, // Only supported by WT931/JY931/HWT606/HWT906
+}
+
+impl TryFrom<u32> for BaudRate {
+    type Error = ImuError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Ok(match value {
+            4800 => BaudRate::Baud4800,
+            9600 => BaudRate::Baud9600,
+            19200 => BaudRate::Baud19200,
+            38400 => BaudRate::Baud38400,
+            57600 => BaudRate::Baud57600,
+            115200 => BaudRate::Baud115200,
+            230400 => BaudRate::Baud230400,
+            460800 => BaudRate::Baud460800,
+            921600 => BaudRate::Baud921600,
+            _ => {
+                return Err(ImuError::ConfigurationError(format!(
+                    "Invalid baud rate: {}",
+                    value
+                )))
+            }
+        })
+    }
+}
+
+impl Bytable for BaudRate {
+    fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            BaudRate::Baud4800 => vec![0x01, 0x00],
+            BaudRate::Baud9600 => vec![0x02, 0x00],
+            BaudRate::Baud19200 => vec![0x03, 0x00],
+            BaudRate::Baud38400 => vec![0x04, 0x00],
+            BaudRate::Baud57600 => vec![0x05, 0x00],
+            BaudRate::Baud115200 => vec![0x06, 0x00],
+            BaudRate::Baud230400 => vec![0x07, 0x00],
+            BaudRate::Baud460800 => vec![0x08, 0x00],
+            BaudRate::Baud921600 => vec![0x09, 0x00],
+        }
+    }
+}
+
+impl SetBaudRateCommand {
+    pub fn new(baud_rate: BaudRate) -> Self {
+        let data = baud_rate.to_bytes();
+        let command = Command::new(Register::Baud, [data[0], data[1]]);
+        Self { command }
+    }
+}
+
+impl Default for SetBaudRateCommand {
+    fn default() -> Self {
+        Self::new(BaudRate::Baud230400)
     }
 }
