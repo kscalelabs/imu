@@ -118,7 +118,11 @@ impl IMU {
     }
 
     fn initialize(&mut self) -> Result<(), ImuError> {
-        let rsw_names = vec![ImuRswName::Accelerometer, ImuRswName::Gyroscope];
+        let rsw_names = vec![
+            // ImuRswName::Accelerometer,
+            // ImuRswName::Gyroscope,
+            ImuRswName::Quaternion,
+        ];
         let mut mask: u16 = 0x0000;
         for rsw_name in rsw_names {
             mask |= rsw_name.to_byte();
@@ -127,10 +131,12 @@ impl IMU {
         // The datasheet for these values is available here:
         // https://github.com/YahboomTechnology/10-axis_IMU_Module
         self.write_command(&vec![0xFF, 0xAA, 0x69, 0x88, 0xB5])?; // Unlock
-        self.write_command(&vec![0xFF, 0xAA, 0x04, 0x06, 0x00])?; // Baud rate
-        self.write_command(&vec![0xFF, 0xAA, 0x2A, 0xFF, 0x00])?; // ACCFILT
         self.write_command(&vec![0xFF, 0xAA, 0x02, mask as u8, (mask >> 8) as u8])?; // RSW
-        self.write_command(&vec![0xFF, 0xAA, 0x00, 0x00, 0x00])?; // Save
+        self.write_command(&vec![0xFF, 0xAA, 0x04, 0x06, 0x00])?; // Baud rate = 115200
+        self.write_command(&vec![0xFF, 0xAA, 0x23, 0x01, 0x00])?; // ORIENT
+        self.write_command(&vec![0xFF, 0xAA, 0x24, 0x01, 0x00])?; // AXIS6
+        self.write_command(&vec![0xFF, 0xAA, 0x2A, 0xFF, 0x03])?; // ACCFILT
+        self.write_command(&vec![0xFF, 0xAA, 0x00, 0x00, 0xFF])?; // Save
 
         // Set IMU frequency to a reasonable default.
         self.set_frequency(ImuFrequency::Hz200)?;
