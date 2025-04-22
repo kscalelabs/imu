@@ -116,6 +116,8 @@ pub trait Registrable {
     fn register(&self) -> Register;
 }
 
+pub trait BytableRegistrable: Bytable + Registrable {}
+
 #[derive(Registrable)]
 pub struct Command {
     pub register: Register,

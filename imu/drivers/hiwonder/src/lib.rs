@@ -206,7 +206,7 @@ impl HiwonderReader {
         }
     }
 
-    pub fn write_command(&self, command: &dyn (Bytable + RegisterAble), verify: bool, timeout: Duration) -> Result<(), ImuError> {
+    pub fn write_command(&self, command: &dyn BytableRegistrable, verify: bool, timeout: Duration) -> Result<(), ImuError> {
 
         if let Ok(mut mode_guard) = self.mode.write() {
             *mode_guard = ImuMode::Write;

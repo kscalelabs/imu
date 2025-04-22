@@ -84,3 +84,48 @@ pub fn derive_registrable_command(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+#[proc_macro_derive(BytableRegistrable)]
+pub fn derive_bytable_registrable(input: TokenStream) -> TokenStream {
+    // Parse the input tokens into a syntax tree
+    let input = parse_macro_input!(input as DeriveInput);
+
+    // Get the name of the struct we're deriving for
+    let name = input.ident;
+
+    // Build the output token stream
+    let expanded = quote! {
+        impl BytableRegistrable for #name {
+            fn to_bytes(&self) -> Vec<u8> {
+                self.to_bytes()
+            }
+            fn register(&self) -> Register {
+                self.register()
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_derive(BytableRegistrableCommand)]
+pub fn derive_bytable_registrable_command(input: TokenStream) -> TokenStream {
+    // Parse the input tokens into a syntax tree
+    let input = parse_macro_input!(input as DeriveInput);
+
+    // Get the name of the struct we're deriving for
+    let name = input.ident;
+
+    // Build the output token stream
+    let expanded = quote! {
+        impl BytableRegistrable for #name {
+            fn to_bytes(&self) -> Vec<u8> {
+                self.command.to_bytes()
+            }
+            fn register(&self) -> Register {
+                self.command.register()
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
