@@ -12,18 +12,72 @@ pub struct Vector3 {
     pub z: f32,
 }
 
-impl fmt::Display for Vector3 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Vector3(x={}, y={}, z={})", self.x, self.y, self.z)
-    }
-}
-
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Quaternion {
     pub w: f32,
     pub x: f32,
     pub y: f32,
     pub z: f32,
+}
+
+impl Vector3 {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Self { x, y, z }
+    }
+
+    pub fn euler_to_quaternion(&self) -> Quaternion {
+        // Convert Euler angles (in radians) to quaternion
+        // Using the ZYX rotation order (yaw, pitch, roll)
+        let (roll, pitch, yaw) = (self.x, self.y, self.z);
+
+        let cr = (roll * 0.5).cos();
+        let sr = (roll * 0.5).sin();
+        let cp = (pitch * 0.5).cos();
+        let sp = (pitch * 0.5).sin();
+        let cy = (yaw * 0.5).cos();
+        let sy = (yaw * 0.5).sin();
+
+        let w = cr * cp * cy + sr * sp * sy;
+        let x = sr * cp * cy - cr * sp * sy;
+        let y = cr * sp * cy + sr * cp * sy;
+        let z = cr * cp * sy - sr * sp * cy;
+
+        Quaternion { w, x, y, z }
+    }
+}
+
+impl fmt::Display for Vector3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Vector3(x={}, y={}, z={})", self.x, self.y, self.z)
+    }
+}
+
+impl Quaternion {
+    pub fn rotate(&self, vector: Vector3) -> Vector3 {
+        // Rotate a vector by a quaternion using the formula:
+        // v' = q * v * q^-1
+        // Where q^-1 is the conjugate since we assume unit quaternions
+        let qw = self.w;
+        let qx = self.x;
+        let qy = self.y;
+        let qz = self.z;
+        let vx = vector.x;
+        let vy = vector.y;
+        let vz = vector.z;
+
+        // Calculate rotation using quaternion multiplication
+        let x = (1.0 - 2.0 * qy * qy - 2.0 * qz * qz) * vx
+            + (2.0 * qx * qy - 2.0 * qz * qw) * vy
+            + (2.0 * qx * qz + 2.0 * qy * qw) * vz;
+        let y = (2.0 * qx * qy + 2.0 * qz * qw) * vx
+            + (1.0 - 2.0 * qx * qx - 2.0 * qz * qz) * vy
+            + (2.0 * qy * qz - 2.0 * qx * qw) * vz;
+        let z = (2.0 * qx * qz - 2.0 * qy * qw) * vx
+            + (2.0 * qy * qz + 2.0 * qx * qw) * vy
+            + (1.0 - 2.0 * qx * qx - 2.0 * qy * qy) * vz;
+
+        Vector3 { x, y, z }
+    }
 }
 
 impl fmt::Display for Quaternion {
