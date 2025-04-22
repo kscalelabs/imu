@@ -130,9 +130,12 @@ impl Command {
     }
 }
 
-impl Bytable for Command {
+impl BytableRegistrable for Command {
     fn to_bytes(&self) -> Vec<u8> {
         vec![0xFF, 0xAA, self.register as u8, self.data[0], self.data[1]]
+    }
+    fn register(&self) -> Register {
+        self.register
     }
 }
 
@@ -146,7 +149,7 @@ impl Default for Command {
 }
 
 // Common commands
-#[derive(BytableCommand, DefaultableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand, DefaultableCommand)]
 pub struct UnlockCommand {
     pub command: Command,
 }
@@ -158,7 +161,7 @@ impl UnlockCommand {
     }
 }
 
-#[derive(BytableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand)]
 pub struct ReadAddressCommand {
     pub command: Command,
 }
@@ -176,7 +179,7 @@ impl Default for ReadAddressCommand {
     }
 }
 
-#[derive(BytableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand)]
 pub struct FusionAlgorithmCommand {
     pub command: Command,
 }
@@ -203,7 +206,7 @@ impl Default for FusionAlgorithmCommand {
     }
 }
 
-#[derive(BytableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand)]
 pub struct EnableOutputCommand {
     pub command: Command,
 }
@@ -240,7 +243,7 @@ impl Default for EnableOutputCommand {
     }
 }
 
-#[derive(BytableCommand, DefaultableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand, DefaultableCommand)]
 pub struct SaveCommand {
     pub command: Command,
 }
@@ -252,7 +255,7 @@ impl SaveCommand {
     }
 }
 
-#[derive(BytableCommand, DefaultableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand, DefaultableCommand)]
 pub struct RebootCommand {
     pub command: Command,
 }
@@ -264,7 +267,7 @@ impl RebootCommand {
     }
 }
 
-#[derive(BytableCommand, DefaultableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand, DefaultableCommand)]
 pub struct FactoryResetCommand {
     pub command: Command,
 }
@@ -295,7 +298,7 @@ impl Bytable for ImuFrequency {
     }
 }
 
-#[derive(BytableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand)]
 pub struct SetFrequencyCommand {
     pub command: Command,
 }
@@ -314,7 +317,7 @@ impl Default for SetFrequencyCommand {
     }
 }
 
-#[derive(BytableCommand, RegistrableCommand)]
+#[derive(BytableRegistrableCommand)]
 pub struct SetBaudRateCommand {
     pub command: Command,
 }
