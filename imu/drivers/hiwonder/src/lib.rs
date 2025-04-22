@@ -101,7 +101,6 @@ pub struct HiwonderReader {
     data: Arc<RwLock<ImuData>>,
     command_tx: mpsc::Sender<ImuCommand>,
     running: Arc<RwLock<bool>>,
-    data_read: Arc<RwLock<bool>>, // Track if data has been read
 }
 
 #[derive(Debug)]
@@ -115,14 +114,12 @@ impl HiwonderReader {
     pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
         let data = Arc::new(RwLock::new(ImuData::default()));
         let running = Arc::new(RwLock::new(true));
-        let data_read = Arc::new(RwLock::new(true));
         let (command_tx, command_rx) = mpsc::channel();
 
         let reader = HiwonderReader {
             data: Arc::clone(&data),
             command_tx,
             running: Arc::clone(&running),
-            data_read: Arc::clone(&data_read),
         };
 
         reader.start_reading_thread(interface, baud_rate, command_rx)?;
@@ -138,7 +135,6 @@ impl HiwonderReader {
     ) -> Result<(), ImuError> {
         let data = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);
-        let data_read = Arc::clone(&self.data_read);
         let interface = interface.to_string();
 
         let (tx, rx) = mpsc::channel();
@@ -239,26 +235,12 @@ impl ImuReader for HiwonderReader {
     }
 
     fn get_data(&self) -> Result<ImuData, ImuError> {
-        // Check if data has been read
-        if let Ok(read) = self.data_read.read() {
-            if *read {
-                return Err(ImuError::ReadError("No new data available".to_string()));
-            }
-        }
-
         // Get the data
         let result = self
             .data
             .read()
             .map(|data| data.clone())
             .map_err(|_| ImuError::ReadError("Lock error".to_string()));
-
-        // Mark data as read if we successfully got it
-        if result.is_ok() {
-            if let Ok(mut read) = self.data_read.write() {
-                *read = true;
-            }
-        }
 
         result
     }

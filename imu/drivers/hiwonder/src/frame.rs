@@ -28,6 +28,19 @@ pub enum FrameType {
     GenericRead = 0x5F,
 }
 
+impl FrameType {
+    pub fn get_constant_value(self) -> f32 {
+        match self {
+            FrameType::Gyro => 2000.0 * std::f32::consts::PI / 180.0,
+            FrameType::Angle => std::f32::consts::PI,
+            FrameType::Acceleration => 16.0 * 9.80665,
+            _ => 1.0,
+        }
+    }
+}
+
+
+
 impl TryFrom<u8> for FrameType {
     type Error = ImuError;
 
@@ -87,60 +100,57 @@ impl ReadFrame {
 
     pub fn deserialize(frame: RawFrame) -> Result<Self, ImuError> {
         let frame_type = frame.frame_type;
+        let k = frame_type.get_constant_value();
         match frame_type {
             FrameType::Time => {
                 unimplemented!()
             }
             FrameType::Acceleration => {
-                let k_acc = 16.0 * 9.80665;
                 let acc_x = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
                 let acc_y = i16::from(frame.data[3]) << 8 | i16::from(frame.data[2]);
                 let acc_z = i16::from(frame.data[5]) << 8 | i16::from(frame.data[4]);
                 let temp = i16::from(frame.data[7]) << 8 | i16::from(frame.data[6]);
                 Ok(ReadFrame::Acceleration {
-                    x: acc_x as f32 / 32768.0 * k_acc,
-                    y: acc_y as f32 / 32768.0 * k_acc,
-                    z: acc_z as f32 / 32768.0 * k_acc,
+                    x: acc_x as f32 / 32768.0 * k,
+                    y: acc_y as f32 / 32768.0 * k,
+                    z: acc_z as f32 / 32768.0 * k,
                     temp: temp as f32 / 100.0,
                 })
             }
             // Returns radians per second
             FrameType::Gyro => {
-                let k_gyro = 2000.0 * std::f32::consts::PI / 180.0;
                 let gyro_x = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
                 let gyro_y = i16::from(frame.data[3]) << 8 | i16::from(frame.data[2]);
                 let gyro_z = i16::from(frame.data[5]) << 8 | i16::from(frame.data[4]);
                 let voltage = i16::from(frame.data[7]) << 8 | i16::from(frame.data[6]);
                 Ok(ReadFrame::Gyro {
-                    x: gyro_x as f32 / 32768.0 * k_gyro,
-                    y: gyro_y as f32 / 32768.0 * k_gyro,
-                    z: gyro_z as f32 / 32768.0 * k_gyro,
+                    x: gyro_x as f32 / 32768.0 * k,
+                    y: gyro_y as f32 / 32768.0 * k,
+                    z: gyro_z as f32 / 32768.0 * k,
                     voltage: voltage as f32 / 100.0, // "Non-Bluetooth Products，the data is invalid" - https://github.com/YahboomTechnology/10-axis_IMU_Module
                 })
             }
             FrameType::Angle => {
-                let k_angle = std::f32::consts::PI;
                 let angle_x = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
                 let angle_y = i16::from(frame.data[3]) << 8 | i16::from(frame.data[2]);
                 let angle_z = i16::from(frame.data[5]) << 8 | i16::from(frame.data[4]);
                 let version = i16::from(frame.data[7]) << 8 | i16::from(frame.data[6]);
                 Ok(ReadFrame::Angle {
-                    roll: angle_x as f32 / 32768.0 * k_angle,
-                    pitch: angle_y as f32 / 32768.0 * k_angle,
-                    yaw: angle_z as f32 / 32768.0 * k_angle,
+                    roll: angle_x as f32 / 32768.0 * k,
+                    pitch: angle_y as f32 / 32768.0 * k,
+                    yaw: angle_z as f32 / 32768.0 * k,
                     version: version as f32,
                 })
             }
             FrameType::Magnetometer => {
-                let k_mag = 1.0;
                 let mag_x = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
                 let mag_y = i16::from(frame.data[3]) << 8 | i16::from(frame.data[2]);
                 let mag_z = i16::from(frame.data[5]) << 8 | i16::from(frame.data[4]);
                 let temp = i16::from(frame.data[7]) << 8 | i16::from(frame.data[6]);
                 Ok(ReadFrame::Magnetometer {
-                    x: mag_x as f32 / 32768.0 * k_mag,
-                    y: mag_y as f32 / 32768.0 * k_mag,
-                    z: mag_z as f32 / 32768.0 * k_mag,
+                    x: mag_x as f32 / 32768.0 * k,
+                    y: mag_y as f32 / 32768.0 * k,
+                    z: mag_z as f32 / 32768.0 * k,
                     temp: temp as f32 / 100.0,
                 })
             }
@@ -157,16 +167,15 @@ impl ReadFrame {
                 unimplemented!()
             }
             FrameType::Quaternion => {
-                let k_quat = 1.0;
                 let quat_w = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
                 let quat_x = i16::from(frame.data[3]) << 8 | i16::from(frame.data[2]);
                 let quat_y = i16::from(frame.data[5]) << 8 | i16::from(frame.data[4]);
                 let quat_z = i16::from(frame.data[7]) << 8 | i16::from(frame.data[6]);
                 Ok(ReadFrame::Quaternion {
-                    w: quat_w as f32 / 32768.0 * k_quat,
-                    x: quat_x as f32 / 32768.0 * k_quat,
-                    y: quat_y as f32 / 32768.0 * k_quat,
-                    z: quat_z as f32 / 32768.0 * k_quat,
+                    w: quat_w as f32 / 32768.0 * k,
+                    x: quat_x as f32 / 32768.0 * k,
+                    y: quat_y as f32 / 32768.0 * k,
+                    z: quat_z as f32 / 32768.0 * k,
                 })
             }
             FrameType::GpsAccuracy => {
