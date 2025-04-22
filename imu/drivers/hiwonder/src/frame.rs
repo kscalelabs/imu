@@ -39,8 +39,6 @@ impl FrameType {
     }
 }
 
-
-
 impl TryFrom<u8> for FrameType {
     type Error = ImuError;
 
@@ -58,26 +56,82 @@ impl TryFrom<u8> for FrameType {
             0x59 => Ok(FrameType::Quaternion),
             0x5A => Ok(FrameType::GpsAccuracy),
             0x5F => Ok(FrameType::GenericRead),
-            _ => Err(ImuError::ReadError(format!("Unknown frame type: {}", value))),
+            _ => Err(ImuError::ReadError(format!(
+                "Unknown frame type: {}",
+                value
+            ))),
         }
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReadFrame {
-    Time { year: u8, month: u8, day: u8, hour: u8, minute: u8, second: u8, ms: u16, },
-    Acceleration { x: f32, y: f32, z: f32, temp: f32 },
-    Gyro { x: f32, y: f32, z: f32, voltage: f32 },
-    Angle { roll: f32, pitch: f32, yaw: f32, version: f32},
-    Magnetometer { x: f32, y: f32, z: f32, temp: f32 },
-    PortStatus { d0: u16, d1: u16, d2: u16, d3: u16 },
-    BaroAltitude { pressure: u32, height_cm: u32 },
-    LatLon { lon: f64, lat: f64 },
-    GroundSpeed { speed_kmh: f32 },
-    Quaternion { w: f32, x: f32, y: f32, z: f32 },
-    GpsAccuracy { sv: u16, pdop: f32, hdop: f32, vdop: f32 },
-    GenericRead { reg_addr: u8, data: [u8; 8] },
+    Time {
+        year: u8,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minute: u8,
+        second: u8,
+        ms: u16,
+    },
+    Acceleration {
+        x: f32,
+        y: f32,
+        z: f32,
+        temp: f32,
+    },
+    Gyro {
+        x: f32,
+        y: f32,
+        z: f32,
+        voltage: f32,
+    },
+    Angle {
+        roll: f32,
+        pitch: f32,
+        yaw: f32,
+        version: f32,
+    },
+    Magnetometer {
+        x: f32,
+        y: f32,
+        z: f32,
+        temp: f32,
+    },
+    PortStatus {
+        d0: u16,
+        d1: u16,
+        d2: u16,
+        d3: u16,
+    },
+    BaroAltitude {
+        pressure: u32,
+        height_cm: u32,
+    },
+    LatLon {
+        lon: f64,
+        lat: f64,
+    },
+    GroundSpeed {
+        speed_kmh: f32,
+    },
+    Quaternion {
+        w: f32,
+        x: f32,
+        y: f32,
+        z: f32,
+    },
+    GpsAccuracy {
+        sv: u16,
+        pdop: f32,
+        hdop: f32,
+        vdop: f32,
+    },
+    GenericRead {
+        reg_addr: u8,
+        data: [u8; 8],
+    },
 }
 
 impl ReadFrame {
@@ -186,7 +240,6 @@ impl ReadFrame {
             }
         }
     }
-
 }
 
 pub struct FrameParser {
@@ -194,7 +247,7 @@ pub struct FrameParser {
 }
 
 impl FrameParser {
-    pub fn new(buffer_size: Option<usize>   ) -> Self {
+    pub fn new(buffer_size: Option<usize>) -> Self {
         let buffer_size = buffer_size.unwrap_or(512);
         FrameParser {
             buffer: Vec::with_capacity(buffer_size),
@@ -212,7 +265,10 @@ impl FrameParser {
         // Process buffer seeking valid packets
         'outer: loop {
             // Find the next potential start byte (0x55) from the current search position
-            if let Some(start_offset) = self.buffer[consumed..].iter().position(|&b| b == START_BYTE) {
+            if let Some(start_offset) = self.buffer[consumed..]
+                .iter()
+                .position(|&b| b == START_BYTE)
+            {
                 let packet_start_index = consumed + start_offset;
 
                 if self.buffer.len() < packet_start_index + PACKET_SIZE {
@@ -220,7 +276,8 @@ impl FrameParser {
                     break 'outer;
                 }
 
-                let packet_bytes = &self.buffer[packet_start_index..packet_start_index + PACKET_SIZE];
+                let packet_bytes =
+                    &self.buffer[packet_start_index..packet_start_index + PACKET_SIZE];
 
                 // Calculate checksum (Start + Type + Data[0..8])
                 let calculated_checksum: u8 = packet_bytes[0..10]
@@ -230,18 +287,27 @@ impl FrameParser {
 
                 if calculated_checksum == received_checksum {
                     let type_byte = packet_bytes[1];
-                    let data_bytes: [u8; 8] = packet_bytes[2..10].try_into().map_err(|_| ImuError::ReadError("Failed to convert slice to array".to_string()))?;
+                    let data_bytes: [u8; 8] = packet_bytes[2..10].try_into().map_err(|_| {
+                        ImuError::ReadError("Failed to convert slice to array".to_string())
+                    })?;
 
                     match FrameType::try_from(type_byte) {
                         Ok(frame_type) => {
-                            let raw_frame = RawFrame { frame_type, data: data_bytes };
-                            match ReadFrame::deserialize(raw_frame) { // Assumes deserialize is implemented
+                            let raw_frame = RawFrame {
+                                frame_type,
+                                data: data_bytes,
+                            };
+                            match ReadFrame::deserialize(raw_frame) {
+                                // Assumes deserialize is implemented
                                 Ok(parsed_frame) => {
                                     frames.push(parsed_frame);
                                     consumed = packet_start_index + PACKET_SIZE;
                                 }
                                 Err(e) => {
-                                    eprintln!("Frame deserialization error: {:?}, discarding packet.", e);
+                                    eprintln!(
+                                        "Frame deserialization error: {:?}, discarding packet.",
+                                        e
+                                    );
                                     consumed = packet_start_index + PACKET_SIZE;
                                 }
                             }
@@ -270,9 +336,7 @@ impl FrameParser {
         Ok(frames)
     }
 
-     pub fn clear_buffer(&mut self) {
+    pub fn clear_buffer(&mut self) {
         self.buffer.clear();
-     }
+    }
 }
-
-

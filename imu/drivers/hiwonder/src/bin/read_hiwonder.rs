@@ -1,4 +1,4 @@
-use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Quaternion, Vector3};
+use hiwonder::{HiwonderReader, ImuReader, Quaternion, Vector3};
 use std::io;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -20,7 +20,7 @@ fn main() -> io::Result<()> {
 
     let mut reader = None;
     for port in ports_to_try {
-        match HiwonderReader::new(&port, baud_rate) {
+        match HiwonderReader::new(port, baud_rate) {
             Ok(r) => {
                 println!("Successfully connected to {}", port);
                 reader = Some(r);
@@ -46,21 +46,20 @@ fn main() -> io::Result<()> {
     let start_time = Instant::now();
 
     loop {
-        match reader.get_data() {
-            Ok(data) => {
-                num_steps += 1;
+        if let Ok(data) = reader.get_data() {
+            num_steps += 1;
 
-                let accel = data.accelerometer.unwrap_or(Vector3::default());
-                let gyro = data.gyroscope.unwrap_or(Vector3::default());
-                let angle = data.euler.unwrap_or(Vector3::default());
-                let quaternion = data.quaternion.unwrap_or(Quaternion::default());
-                let magnetometer = data.magnetometer.unwrap_or(Vector3::default());
+            let accel = data.accelerometer.unwrap_or(Vector3::default());
+            let gyro = data.gyroscope.unwrap_or(Vector3::default());
+            let angle = data.euler.unwrap_or(Vector3::default());
+            let quaternion = data.quaternion.unwrap_or(Quaternion::default());
+            let magnetometer = data.magnetometer.unwrap_or(Vector3::default());
 
-                // Computes projected gravity from the quaternion.
-                let gravity = quaternion.rotate(Vector3::new(0.0, 0.0, -1.0));
+            // Computes projected gravity from the quaternion.
+            let gravity = quaternion.rotate(Vector3::new(0.0, 0.0, -1.0));
 
-                println!(
-                    "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+            println!(
+                "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      angle: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      quaternion: x: {: >10.3} y: {: >10.3} z: {: >10.3} w: {: >10.3}\n\
@@ -70,31 +69,31 @@ fn main() -> io::Result<()> {
                      num_steps: {: >10}\n\
                      steps/sec: {: >10}\n\
                      ",
-                    accel.x,
-                    accel.y,
-                    accel.z,
-                    gyro.x,
-                    gyro.y,
-                    gyro.z,
-                    angle.x,
-                    angle.y,
-                    angle.z,
-                    quaternion.x,
-                    quaternion.y,
-                    quaternion.z,
-                    quaternion.w,
-                    magnetometer.x,
-                    magnetometer.y,
-                    magnetometer.z,
-                    data.temperature.unwrap_or(0.0),
-                    gravity.x,
-                    gravity.y,
-                    gravity.z,
-                    num_steps,
-                    num_steps as f32 / start_time.elapsed().as_secs_f32(),
-                );
-            }
-            Err(_) => (),
+                accel.x,
+                accel.y,
+                accel.z,
+                gyro.x,
+                gyro.y,
+                gyro.z,
+                angle.x,
+                angle.y,
+                angle.z,
+                quaternion.x,
+                quaternion.y,
+                quaternion.z,
+                quaternion.w,
+                magnetometer.x,
+                magnetometer.y,
+                magnetometer.z,
+                data.temperature.unwrap_or(0.0),
+                gravity.x,
+                gravity.y,
+                gravity.z,
+                num_steps,
+                num_steps as f32 / start_time.elapsed().as_secs_f32(),
+            );
+        } else {
+            eprintln!("Failed to read data");
         }
 
         thread::sleep(Duration::from_nanos(100000));

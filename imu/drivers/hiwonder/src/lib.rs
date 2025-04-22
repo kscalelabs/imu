@@ -1,12 +1,11 @@
 pub mod frame;
 pub mod register;
+pub use frame::*;
 pub use imu_traits::{ImuData, ImuError, ImuFrequency, ImuReader, Quaternion, Vector3};
-use serialport;
+pub use register::*;
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-pub use frame::*;
-pub use register::*;
 
 pub trait FrequencyToByte {
     fn to_byte(&self) -> u8;
@@ -43,7 +42,7 @@ impl IMU {
             .open()?;
 
         let mut imu = IMU {
-            port: port,
+            port,
             frame_parser: FrameParser::new(Some(512)),
         };
 
@@ -67,7 +66,9 @@ impl IMU {
     }
 
     fn write_command(&mut self, command: &dyn Bytable) -> Result<(), ImuError> {
-        self.port.write_all(&command.to_bytes()).map_err(ImuError::from)?;
+        self.port
+            .write_all(&command.to_bytes())
+            .map_err(ImuError::from)?;
         // 200 hz -> 5ms
         std::thread::sleep(Duration::from_millis(30));
         Ok(())
@@ -84,13 +85,11 @@ impl IMU {
             Ok(n) => {
                 if n > 0 {
                     Ok(self.frame_parser.parse(&buffer[0..n])?)
-                }else {
+                } else {
                     Ok(vec![])
                 }
             }
-            Err(e) => {
-                return Err(ImuError::ReadError(format!("Failed to read data: {}", e)));
-            }
+            Err(e) => Err(ImuError::ReadError(format!("Failed to read data: {}", e))),
         }
     }
 }
@@ -180,22 +179,36 @@ impl HiwonderReader {
                         for frame in frames {
                             if let Ok(mut imu_data) = data.write() {
                                 match frame {
-                                ReadFrame::Acceleration { x, y, z, temp: _ } => {
+                                    ReadFrame::Acceleration { x, y, z, temp: _ } => {
                                         imu_data.accelerometer = Some(Vector3 { x, y, z });
-                                }
-                                ReadFrame::Gyro { x, y, z, voltage: _ } => {
-                                    imu_data.gyroscope = Some(Vector3 { x, y, z });
-                                }
-                                ReadFrame::Angle { roll, pitch, yaw, version: _ } => {
-                                    imu_data.euler = Some(Vector3 { x: roll, y: pitch, z: yaw });
-                                }
-                                ReadFrame::Magnetometer { x, y, z, temp: _ } => {
-                                    imu_data.magnetometer = Some(Vector3 { x, y, z });
-                                }
-                                ReadFrame::Quaternion { w, x, y, z } => {
-                                    imu_data.quaternion = Some(Quaternion { w, x, y, z });
-                                }
-                                _ => (),
+                                    }
+                                    ReadFrame::Gyro {
+                                        x,
+                                        y,
+                                        z,
+                                        voltage: _,
+                                    } => {
+                                        imu_data.gyroscope = Some(Vector3 { x, y, z });
+                                    }
+                                    ReadFrame::Angle {
+                                        roll,
+                                        pitch,
+                                        yaw,
+                                        version: _,
+                                    } => {
+                                        imu_data.euler = Some(Vector3 {
+                                            x: roll,
+                                            y: pitch,
+                                            z: yaw,
+                                        });
+                                    }
+                                    ReadFrame::Magnetometer { x, y, z, temp: _ } => {
+                                        imu_data.magnetometer = Some(Vector3 { x, y, z });
+                                    }
+                                    ReadFrame::Quaternion { w, x, y, z } => {
+                                        imu_data.quaternion = Some(Quaternion { w, x, y, z });
+                                    }
+                                    _ => (),
                                 }
                             } else {
                                 eprintln!("Failed to write to IMU data");
@@ -216,7 +229,6 @@ impl HiwonderReader {
             .map_err(|_| {
                 ImuError::InvalidPacket("Failed to receive initialization result".to_string())
             })?
-            .map_err(|e| e)
     }
 
     pub fn reset(&self) -> Result<(), ImuError> {
@@ -241,7 +253,7 @@ impl ImuReader for HiwonderReader {
         let result = self
             .data
             .read()
-            .map(|data| data.clone())
+            .map(|data| *data)
             .map_err(|_| ImuError::ReadError("Lock error".to_string()));
 
         result
