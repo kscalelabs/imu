@@ -130,7 +130,10 @@ impl Bytable for Command {
 
 impl Default for Command {
     fn default() -> Self {
-        Self { register: Register::Save, data: [0x00, 0x00] }
+        Self {
+            register: Register::Save,
+            data: [0x00, 0x00],
+        }
     }
 }
 

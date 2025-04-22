@@ -143,7 +143,8 @@ impl HiwonderReader {
                 let _ = tx.send(Err(e));
                 return;
             }
-            let mut imu = init_result.unwrap();
+
+            let mut imu = init_result.unwrap(); // This is safe because we have already checked for errors
             let _ = tx.send(Ok(()));
 
             while let Ok(guard) = running.read() {
@@ -225,10 +226,9 @@ impl HiwonderReader {
         });
 
         // Wait for initialization result before returning
-        rx.recv()
-            .map_err(|_| {
-                ImuError::InvalidPacket("Failed to receive initialization result".to_string())
-            })?
+        rx.recv().map_err(|_| {
+            ImuError::InvalidPacket("Failed to receive initialization result".to_string())
+        })?
     }
 
     pub fn reset(&self) -> Result<(), ImuError> {

@@ -1,6 +1,5 @@
 use hiwonder::{HiwonderReader, ImuReader, Quaternion, Vector3};
 use std::io;
-use std::process::exit;
 use std::thread;
 use std::time::{Duration, Instant};
 
