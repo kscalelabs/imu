@@ -22,7 +22,7 @@ pub enum FrameType {
     PortStatus = 0x55,
     BaroAltitude = 0x56,
     LatLon = 0x57,
-    GroundSpeed = 0x58,
+    Gps = 0x58,
     Quaternion = 0x59,
     GpsAccuracy = 0x5A,
     GenericRead = 0x5F,
@@ -52,7 +52,7 @@ impl TryFrom<u8> for FrameType {
             0x55 => Ok(FrameType::PortStatus),
             0x56 => Ok(FrameType::BaroAltitude),
             0x57 => Ok(FrameType::LatLon),
-            0x58 => Ok(FrameType::GroundSpeed),
+            0x58 => Ok(FrameType::Gps),
             0x59 => Ok(FrameType::Quaternion),
             0x5A => Ok(FrameType::GpsAccuracy),
             0x5F => Ok(FrameType::GenericRead),
@@ -113,8 +113,10 @@ pub enum ReadFrame {
         lon: f64,
         lat: f64,
     },
-    GroundSpeed {
-        speed_kmh: f32,
+    Gps {
+        altitude: f32,
+        heading: f32,
+        ground_speed: f32,
     },
     Quaternion {
         w: f32,
@@ -129,7 +131,6 @@ pub enum ReadFrame {
         vdop: f32,
     },
     GenericRead {
-        reg_addr: u8,
         data: [u8; 8],
     },
 }
@@ -145,7 +146,7 @@ impl ReadFrame {
             ReadFrame::PortStatus { .. } => FrameType::PortStatus,
             ReadFrame::BaroAltitude { .. } => FrameType::BaroAltitude,
             ReadFrame::LatLon { .. } => FrameType::LatLon,
-            ReadFrame::GroundSpeed { .. } => FrameType::GroundSpeed,
+            ReadFrame::Gps { .. } => FrameType::Gps,
             ReadFrame::Quaternion { .. } => FrameType::Quaternion,
             ReadFrame::GpsAccuracy { .. } => FrameType::GpsAccuracy,
             ReadFrame::GenericRead { .. } => FrameType::GenericRead,
@@ -157,7 +158,22 @@ impl ReadFrame {
         let k = frame_type.get_constant_value();
         match frame_type {
             FrameType::Time => {
-                unimplemented!()
+                let year = frame.data[0];
+                let month = frame.data[1];
+                let day = frame.data[2];
+                let hour = frame.data[3];
+                let minute = frame.data[4];
+                let second = frame.data[5];
+                let ms = u16::from(frame.data[7]) << 8 | u16::from(frame.data[6]);
+                Ok(ReadFrame::Time {
+                    year,
+                    month,
+                    day,
+                    hour,
+                    minute,
+                    second,
+                    ms,
+                })
             }
             FrameType::Acceleration => {
                 let acc_x = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
@@ -209,16 +225,52 @@ impl ReadFrame {
                 })
             }
             FrameType::PortStatus => {
-                unimplemented!()
+                let d0 = u16::from(frame.data[1]) << 8 | u16::from(frame.data[0]);
+                let d1 = u16::from(frame.data[3]) << 8 | u16::from(frame.data[2]);
+                let d2 = u16::from(frame.data[5]) << 8 | u16::from(frame.data[4]);
+                let d3 = u16::from(frame.data[7]) << 8 | u16::from(frame.data[6]);
+                Ok(ReadFrame::PortStatus { d0, d1, d2, d3 })
             }
             FrameType::BaroAltitude => {
-                unimplemented!()
+                let pressure = u32::from(frame.data[3]) << 24
+                    | u32::from(frame.data[2]) << 16
+                    | u32::from(frame.data[1]) << 8
+                    | u32::from(frame.data[0]);
+                let height_cm = u32::from(frame.data[7]) << 24
+                    | u32::from(frame.data[6]) << 16
+                    | u32::from(frame.data[5]) << 8
+                    | u32::from(frame.data[4]);
+                Ok(ReadFrame::BaroAltitude {
+                    pressure,
+                    height_cm,
+                })
             }
             FrameType::LatLon => {
-                unimplemented!()
+                let longitude = i32::from(frame.data[3]) << 24
+                    | i32::from(frame.data[2]) << 16
+                    | i32::from(frame.data[1]) << 8
+                    | i32::from(frame.data[0]);
+                let latitude = i32::from(frame.data[7]) << 24
+                    | i32::from(frame.data[6]) << 16
+                    | i32::from(frame.data[5]) << 8
+                    | i32::from(frame.data[4]);
+                Ok(ReadFrame::LatLon {
+                    lon: longitude as f64,
+                    lat: latitude as f64,
+                })
             }
-            FrameType::GroundSpeed => {
-                unimplemented!()
+            FrameType::Gps => {
+                let altitude = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
+                let heading = i16::from(frame.data[3]) << 8 | i16::from(frame.data[2]);
+                let ground_speed = i32::from(frame.data[7]) << 24
+                    | i32::from(frame.data[6]) << 16
+                    | i32::from(frame.data[5]) << 8
+                    | i32::from(frame.data[4]);
+                Ok(ReadFrame::Gps {
+                    altitude: altitude as f32 / 10.0,
+                    heading: heading as f32 / 100.0,
+                    ground_speed: ground_speed as f32 / 1000.0,
+                })
             }
             FrameType::Quaternion => {
                 let quat_w = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
@@ -233,10 +285,29 @@ impl ReadFrame {
                 })
             }
             FrameType::GpsAccuracy => {
-                unimplemented!()
+                let num_satellites = u16::from(frame.data[1]) << 8 | u16::from(frame.data[0]);
+                let pdop = u16::from(frame.data[3]) << 8 | u16::from(frame.data[2]);
+                let hdop = u16::from(frame.data[5]) << 8 | u16::from(frame.data[4]);
+                let vdop = u16::from(frame.data[7]) << 8 | u16::from(frame.data[6]);
+                Ok(ReadFrame::GpsAccuracy {
+                    sv: num_satellites,
+                    pdop: pdop as f32 / 100.0,
+                    hdop: hdop as f32 / 100.0,
+                    vdop: vdop as f32 / 100.0,
+                })
             }
             FrameType::GenericRead => {
-                unimplemented!()
+                let data = [
+                    frame.data[0],
+                    frame.data[1],
+                    frame.data[2],
+                    frame.data[3],
+                    frame.data[4],
+                    frame.data[5],
+                    frame.data[6],
+                    frame.data[7],
+                ];
+                Ok(ReadFrame::GenericRead { data })
             }
         }
     }
