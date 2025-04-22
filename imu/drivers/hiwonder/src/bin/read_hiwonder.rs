@@ -20,7 +20,7 @@ fn main() -> io::Result<()> {
 
     let mut reader = None;
     for port in ports_to_try {
-        match HiwonderReader::new(port, baud_rate) {
+        match HiwonderReader::new(port, baud_rate, Duration::from_secs(1)) {
             Ok(r) => {
                 println!("Successfully connected to {}", port);
                 reader = Some(r);

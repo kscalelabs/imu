@@ -2,6 +2,7 @@
 
 use imu_traits::ImuError;
 use std::convert::TryInto;
+use tracing::warn;
 
 const START_BYTE: u8 = 0x55;
 const PACKET_SIZE: usize = 11; // data packets at 11 bytes
@@ -375,7 +376,7 @@ impl FrameParser {
                                     consumed = packet_start_index + PACKET_SIZE;
                                 }
                                 Err(e) => {
-                                    eprintln!(
+                                    warn!(
                                         "Frame deserialization error: {:?}, discarding packet.",
                                         e
                                     );
@@ -384,12 +385,15 @@ impl FrameParser {
                             }
                         }
                         Err(e) => {
-                            eprintln!("Unknown frame type byte error: {:?}, discarding packet.", e);
+                            warn!(
+                                "Unknown frame type byte error: {:?}, discarding packet.",
+                                e
+                            );
                             consumed = packet_start_index + PACKET_SIZE;
                         }
                     }
                 } else {
-                    eprintln!("Checksum mismatch, discarding packet.");
+                    warn!("Checksum mismatch, discarding packet.");
                     consumed = packet_start_index + 1;
                 }
             } else {

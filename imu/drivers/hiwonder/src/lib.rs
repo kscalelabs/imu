@@ -3,9 +3,10 @@ pub mod register;
 pub use frame::*;
 pub use imu_traits::{ImuData, ImuError, ImuFrequency, ImuReader, Quaternion, Vector3};
 pub use register::*;
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
+use tracing::{debug, error, warn};
 
 pub trait FrequencyToByte {
     fn to_byte(&self) -> u8;
@@ -104,10 +105,19 @@ impl IMU {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
+pub enum ImuMode {
+    Read,
+    Write,
+}
+
 pub struct HiwonderReader {
     data: Arc<RwLock<ImuData>>,
-    command_tx: mpsc::Sender<ImuCommand>,
+    mode: Arc<RwLock<ImuMode>>,
+    port: Arc<Mutex<Box<dyn serialport::SerialPort>>>,
     running: Arc<RwLock<bool>>,
+    frame_parser: Arc<Mutex<FrameParser>>,
+    timeout: Duration,
 }
 
 #[derive(Debug)]
@@ -119,165 +129,196 @@ pub enum ImuCommand {
 }
 
 impl HiwonderReader {
-    pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
+    pub fn new(interface: &str, baud_rate: u32, timeout: Duration) -> Result<Self, ImuError> {
         let data = Arc::new(RwLock::new(ImuData::default()));
         let running = Arc::new(RwLock::new(true));
-        let (command_tx, command_rx) = mpsc::channel();
+
+        let port = serialport::new(interface, baud_rate)
+            .timeout(timeout)
+            .open()?;
 
         let reader = HiwonderReader {
             data: Arc::clone(&data),
-            command_tx,
+            mode: Arc::new(RwLock::new(ImuMode::Read)),
+            port: Arc::new(Mutex::new(port)),
             running: Arc::clone(&running),
+            frame_parser: Arc::new(Mutex::new(FrameParser::new(Some(512)))),
+            timeout,
         };
 
-        reader.start_reading_thread(interface, baud_rate, command_rx)?;
+        reader.start_reading_thread()?;
 
         Ok(reader)
     }
 
+    fn read_frames(
+        port_arc: &Arc<Mutex<Box<dyn serialport::SerialPort>>>,
+        parser_arc: &Arc<Mutex<FrameParser>>,
+    ) -> Result<Vec<ReadFrame>, ImuError> {
+        let mut buffer = [0u8; 1024];
+
+        let mut port_guard = port_arc.lock().map_err(|e| {
+            ImuError::ReadError(format!("Failed to acquire lock on port: {}", e))
+        })?;
+
+        let mut parser_guard = parser_arc.lock().map_err(|e| {
+            ImuError::ReadError(format!(
+                "Failed to acquire lock on frame parser: {}",
+                e
+            ))
+        })?;
+
+        match port_guard.read(&mut buffer) {
+            Ok(n) => {
+                if n > 0 {
+                    parser_guard.parse(&buffer[0..n])
+                } else {
+                    warn!("No data read from port...");
+                    Ok(vec![])
+                }
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(vec![]), // Timeout is expected
+            Err(e) => Err(ImuError::ReadError(format!(
+                "Failed to read data from port: {}",
+                e
+            ))),
+        }
+    }
+
+    fn set_data(imu_data: &mut ImuData, frame: &ReadFrame){
+        match *frame {
+            ReadFrame::Acceleration { x, y, z, temp: _ } => {
+                imu_data.accelerometer = Some(Vector3 { x, y, z });
+            }
+            ReadFrame::Gyro {
+                x,
+                y,
+                z,
+                voltage: _,
+            } => {
+                imu_data.gyroscope = Some(Vector3 { x, y, z });
+            }
+            ReadFrame::Angle {
+                roll,
+                pitch,
+                yaw,
+                version: _,
+            } => {
+                imu_data.euler = Some(Vector3 {
+                    x: roll,
+                    y: pitch,
+                    z: yaw,
+                });
+            }
+            ReadFrame::Magnetometer { x, y, z, temp: _ } => {
+                imu_data.magnetometer = Some(Vector3 { x, y, z });
+            }
+            ReadFrame::Quaternion { w, x, y, z } => {
+                imu_data.quaternion = Some(Quaternion { w, x, y, z });
+            }
+            ReadFrame::GenericRead { data } => {
+                imu_data.generic = Some(data);
+            }
+            _ => (),
+        }
+    }
+
     fn start_reading_thread(
         &self,
-        interface: &str,
-        baud_rate: u32,
-        command_rx: mpsc::Receiver<ImuCommand>,
     ) -> Result<(), ImuError> {
         let data = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);
-        let interface = interface.to_string();
-
-        let (tx, rx) = mpsc::channel();
+        let port = Arc::clone(&self.port);
+        let frame_parser = Arc::clone(&self.frame_parser);
+        let mode = Arc::clone(&self.mode);
 
         thread::spawn(move || {
-            // Initialize IMU inside the thread and send result back
-            let init_result = IMU::new(&interface, baud_rate);
-            if let Err(e) = init_result {
-                let _ = tx.send(Err(e));
-                return;
-            }
-
-            let mut imu = init_result.unwrap(); // This is safe because we have already checked for errors
-            let _ = tx.send(Ok(()));
-
-            while let Ok(guard) = running.read() {
+            while let Ok(guard) = running.read(){
                 if !*guard {
                     break;
                 }
-
-                // Check for any pending commands
-                if let Ok(command) = command_rx.try_recv() {
-                    match command {
-                        ImuCommand::Reset => {
-                            if let Err(e) = imu.initialize() {
-                                eprintln!("Failed to reset IMU: {}", e);
-                            }
-                        }
-                        ImuCommand::Stop => {
-                            if let Ok(mut guard) = running.write() {
-                                *guard = false;
-                            }
-                            break;
-                        }
-                        ImuCommand::SetFrequency(frequency) => {
-                            if let Err(e) = imu.set_frequency(frequency) {
-                                eprintln!("Failed to set frequency: {}", e);
-                            }
-                        }
-                        ImuCommand::SetBaudRate(baud_rate) => {
-                            if let Err(e) = imu.set_baud_rate(baud_rate) {
-                                eprintln!("Failed to set baud rate: {}", e);
-                            }
-                        }
-                    }
-                }
-
-                // Read IMU data
-                match imu.get_frames() {
-                    Ok(frames) => {
-                        for frame in frames {
-                            if let Ok(mut imu_data) = data.write() {
-                                match frame {
-                                    ReadFrame::Acceleration { x, y, z, temp: _ } => {
-                                        imu_data.accelerometer = Some(Vector3 { x, y, z });
-                                    }
-                                    ReadFrame::Gyro {
-                                        x,
-                                        y,
-                                        z,
-                                        voltage: _,
-                                    } => {
-                                        imu_data.gyroscope = Some(Vector3 { x, y, z });
-                                    }
-                                    ReadFrame::Angle {
-                                        roll,
-                                        pitch,
-                                        yaw,
-                                        version: _,
-                                    } => {
-                                        imu_data.euler = Some(Vector3 {
-                                            x: roll,
-                                            y: pitch,
-                                            z: yaw,
-                                        });
-                                    }
-                                    ReadFrame::Magnetometer { x, y, z, temp: _ } => {
-                                        imu_data.magnetometer = Some(Vector3 { x, y, z });
-                                    }
-                                    ReadFrame::Quaternion { w, x, y, z } => {
-                                        imu_data.quaternion = Some(Quaternion { w, x, y, z });
-                                    }
-                                    _ => (),
+                
+                if let Ok(mode) = mode.read() {
+                    if *mode == ImuMode::Read {
+                        match Self::read_frames(&port, &frame_parser) {
+                            Ok(frames) => {
+                                if frames.is_empty() {
+                                    warn!("No frames read from port");
                                 }
-                            } else {
-                                eprintln!("Failed to write to IMU data");
+                                for frame in frames {
+                                    if let Ok(mut imu_data) = data.write() {
+                                        Self::set_data(&mut imu_data, &frame);
+                                    } else {
+                                        error!("Failed to write to IMU data");
+                                    }
+                                }
                             }
+                            Err(e) => error!("Error reading/parsing frames in thread: {}", e),
                         }
+                    }else{
+                        debug!("IMU is in write mode");
                     }
-                    Err(e) => eprintln!("Error reading from IMU: {}", e),
-                }
 
-                // Sleep for a short duration to prevent busy waiting
-                // Max frequency is 200hz (5ms)
-                thread::sleep(Duration::from_millis(4));
+                    thread::sleep(Duration::from_millis(4));
+                }
             }
         });
 
-        // Wait for initialization result before returning
-        rx.recv().map_err(|_| {
-            ImuError::InvalidPacket("Failed to receive initialization result".to_string())
-        })?
+        Ok(())
     }
 
     pub fn reset(&self) -> Result<(), ImuError> {
-        self.command_tx.send(ImuCommand::Reset)?;
+        if let Ok(mut running_guard) = self.running.write() {
+            *running_guard = false;
+            Ok(())
+        } else {
+            Err(ImuError::ReadError("Failed to acquire lock for stop".to_string()))
+        }
+    }
+
+    pub fn write_command(&self, command: &dyn Bytable, verify: bool, timeout: Duration) -> Result<(), ImuError> {
+        if let Ok(mut port_guard) = self.port.lock() {
+            port_guard.write_all(&command.to_bytes())
+                .map_err(ImuError::from)?;
+        }
+
+        if verify {
+            let mut buffer = [0u8; 1024];
+            let mut start_time = Instant::now();
+            while start_time.elapsed() < timeout {
+                if let Ok(n) = port_guard.read(&mut buffer) {
+                    if n > 0 {
+                        if let Ok(response) = FrameParser::parse(&buffer[0..n]) {
+                            if response.is_empty() {
+                                return Err(ImuError::ReadError("No response from IMU".to_string()));
+                            }
+                        }
+                    }
+                }   
+            }
+        }
+
         Ok(())
     }
 
     pub fn set_frequency(&self, frequency: ImuFrequency) -> Result<(), ImuError> {
-        self.command_tx.send(ImuCommand::SetFrequency(frequency))?;
-        Ok(())
+        unimplemented!("Command channel not fully set up");
     }
 
     pub fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ImuError> {
-        self.command_tx.send(ImuCommand::SetBaudRate(baud_rate))?;
-        Ok(())
+        unimplemented!("Command channel not fully set up");
     }
 }
 
 impl ImuReader for HiwonderReader {
     fn stop(&self) -> Result<(), ImuError> {
-        self.command_tx.send(ImuCommand::Stop)?;
-        Ok(())
+        self.reset()
     }
 
     fn get_data(&self) -> Result<ImuData, ImuError> {
-        // Get the data
-        let result = self
-            .data
-            .read()
+        self.data.read()
             .map(|data| *data)
-            .map_err(|_| ImuError::ReadError("Lock error".to_string()));
-
-        result
+            .map_err(|e| ImuError::ReadError(format!("Data lock poisoned: {}", e)))
     }
 }
 

@@ -151,6 +151,24 @@ impl UnlockCommand {
 }
 
 #[derive(BytableCommand)]
+pub struct ReadAddressCommand {
+    pub command: Command,
+}
+
+impl ReadAddressCommand {
+    pub fn new(address: u8) -> Self {
+        let command = Command::new(Register::ReadAddr, [address, 0x00]);
+        Self { command }
+    }
+}
+
+impl Default for ReadAddressCommand {
+    fn default() -> Self {
+        Self::new(Register::IicAddr as u8)
+    }
+}
+
+#[derive(BytableCommand)]
 pub struct FusionAlgorithmCommand {
     pub command: Command,
 }
