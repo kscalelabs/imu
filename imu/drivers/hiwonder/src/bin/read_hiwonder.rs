@@ -1,4 +1,4 @@
-use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Quaternion, Vector3};
+use hiwonder::{HiwonderReader, ImuReader, Quaternion, Vector3};
 use std::io;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -97,6 +97,6 @@ fn main() -> io::Result<()> {
             Err(_) => (),
         }
 
-        thread::sleep(Duration::from_nanos(100));
+        thread::sleep(Duration::from_nanos(10));
     }
 }

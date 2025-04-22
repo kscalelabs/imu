@@ -54,19 +54,19 @@ pub enum ImuRswName {
 }
 
 impl ImuRswName {
-    pub fn to_byte(&self) -> u8 {
+    pub fn to_byte(&self) -> u16 {
         match self {
-            ImuRswName::Time => 0x00,
-            ImuRswName::Accelerometer => 0x01,
-            ImuRswName::Gyroscope => 0x02,
-            ImuRswName::EulerAngle => 0x04,
-            ImuRswName::MagneticField => 0x08,
-            ImuRswName::PortStatus => 0x10,
-            ImuRswName::BarometricAltitude => 0x20,
-            ImuRswName::LatitudeAndLongitude => 0x40,
-            ImuRswName::GroundSpeed => 0x80,
-            ImuRswName::Quaternion => 0x0A,
-            ImuRswName::GPSPositioningAccuracy => 0x10,
+            ImuRswName::Time => 0x0001,
+            ImuRswName::Accelerometer => 0x0002,
+            ImuRswName::Gyroscope => 0x0004,
+            ImuRswName::EulerAngle => 0x0008,
+            ImuRswName::MagneticField => 0x0010,
+            ImuRswName::PortStatus => 0x0020,
+            ImuRswName::BarometricAltitude => 0x0040,
+            ImuRswName::LatitudeAndLongitude => 0x0080,
+            ImuRswName::GroundSpeed => 0x0100,
+            ImuRswName::Quaternion => 0x0200,
+            ImuRswName::GPSPositioningAccuracy => 0x0400,
         }
     }
 }
@@ -118,17 +118,21 @@ impl IMU {
     }
 
     fn initialize(&mut self) -> Result<(), ImuError> {
-        let low_byte = 0x02 | 0x04 | 0x08;
-        let high_byte = 0x02;
+        let rsw_names = vec![ImuRswName::Accelerometer, ImuRswName::Gyroscope];
+        let mut mask: u16 = 0x0000;
+        for rsw_name in rsw_names {
+            mask |= rsw_name.to_byte();
+        }
 
-        // Send commands in sequence.
+        // The datasheet for these values is available here:
+        // https://github.com/YahboomTechnology/10-axis_IMU_Module
         self.write_command(&vec![0xFF, 0xAA, 0x69, 0x88, 0xB5])?; // Unlock
-        self.write_command(&vec![0xFF, 0xAA, 0x24, 0x01, 0x00])?; // Axis6
-        self.write_command(&vec![0xFF, 0xAA, 0x02, low_byte, high_byte])?; // Enable
-        self.write_command(&vec![0xFF, 0xAA, 0x00, 0x00, 0xFF])?; // Reboot
+        self.write_command(&vec![0xFF, 0xAA, 0x2A, 0xFF, 0x00])?; // ACCFILT
+        self.write_command(&vec![0xFF, 0xAA, 0x02, mask as u8, (mask >> 8) as u8])?; // RSW
+        self.write_command(&vec![0xFF, 0xAA, 0x00, 0x00, 0x00])?; // Save
 
         // Set IMU frequency to a reasonable default.
-        self.set_frequency(ImuFrequency::Hz100)?;
+        self.set_frequency(ImuFrequency::Hz200)?;
 
         Ok(())
     }
