@@ -72,12 +72,12 @@ impl HiwonderReader {
             timeout,
         };
 
-        let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
+        let enabled_outputs = Output::empty(); //Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
 
-        reader.write_command(&UnlockCommand::new(), false, Duration::from_secs(1))?;
-        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), true, Duration::from_secs(1))?;
-        reader.write_command(&EnableOutputCommand::new(enabled_outputs), true, Duration::from_secs(1))?;
-        reader.write_command(&SaveCommand::new(), false, Duration::from_secs(1))?;
+        reader.write_command(&UnlockCommand::new(), false, Duration::from_secs(10))?;
+        reader.write_command(&EnableOutputCommand::new(enabled_outputs), false, Duration::from_secs(10))?;
+        reader.write_command(&SaveCommand::new(), false, Duration::from_secs(10))?;
+        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), true, Duration::from_secs(10))?;
 
         reader.start_reading_thread()?;
 
@@ -220,10 +220,15 @@ impl HiwonderReader {
             port_guard.write_all(&command.to_bytes())
                 .map_err(ImuError::from)?;
 
+            std::thread::sleep(Duration::from_millis(30));
+
             if verify {
                 // Send generic read to read data at the set addr
                 port_guard.write_all(&ReadAddressCommand::new(command.register()).to_bytes())
                     .map_err(ImuError::from)?;
+
+                info!("Sent command {:?} to IMU", command.to_bytes().as_slice());
+                info!("Sent read command {:?} to IMU", ReadAddressCommand::new(command.register()).to_bytes().as_slice());
 
                 let mut buffer = [0u8; 1024];
                 let start_time = Instant::now();

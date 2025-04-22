@@ -94,14 +94,20 @@ pub fn derive_bytable_registrable(input: TokenStream) -> TokenStream {
 
     // Build the output token stream
     let expanded = quote! {
-        impl BytableRegistrable for #name {
+
+        impl Bytable for #name {
             fn to_bytes(&self) -> Vec<u8> {
                 self.to_bytes()
             }
+        }
+
+        impl Registrable for #name {
             fn register(&self) -> Register {
                 self.register()
             }
         }
+
+        impl BytableRegistrable for #name {}
     };
 
     TokenStream::from(expanded)
@@ -117,14 +123,19 @@ pub fn derive_bytable_registrable_command(input: TokenStream) -> TokenStream {
 
     // Build the output token stream
     let expanded = quote! {
-        impl BytableRegistrable for #name {
+        impl Bytable for #name {
             fn to_bytes(&self) -> Vec<u8> {
                 self.command.to_bytes()
             }
+        }
+
+        impl Registrable for #name {
             fn register(&self) -> Register {
                 self.command.register()
             }
         }
+
+        impl BytableRegistrable for #name {}
     };
 
     TokenStream::from(expanded)

@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use hiwonder_macros::{BytableCommand, DefaultableCommand, Registrable, RegistrableCommand};
+use hiwonder_macros::{BytableRegistrableCommand, DefaultableCommand, Registrable};
 use imu_traits::{ImuError, ImuFrequency};
 
 #[repr(u8)]
@@ -130,12 +130,9 @@ impl Command {
     }
 }
 
-impl BytableRegistrable for Command {
+impl Bytable for Command {
     fn to_bytes(&self) -> Vec<u8> {
         vec![0xFF, 0xAA, self.register as u8, self.data[0], self.data[1]]
-    }
-    fn register(&self) -> Register {
-        self.register
     }
 }
 
