@@ -44,58 +44,82 @@ fn main() -> io::Result<()> {
 
     let mut num_steps = 0;
     let start_time = Instant::now();
+    let mut prev_gyro: Option<Vector3> = None;
 
     loop {
-        if let Ok(data) = reader.get_data() {
-            num_steps += 1;
+        match reader.get_data() {
+            Ok(data) => {
+                let current_gyro = data.gyroscope;
 
-            let accel = data.accelerometer.unwrap_or(Vector3::default());
-            let gyro = data.gyroscope.unwrap_or(Vector3::default());
-            let angle = data.euler.unwrap_or(Vector3::default());
-            let quaternion = data.quaternion.unwrap_or(Quaternion::default());
-            let magnetometer = data.magnetometer.unwrap_or(Vector3::default());
+                let mut gyro_changed = false;
+                if let Some(cg) = current_gyro {
+                    if let Some(pg) = prev_gyro {
+                        if cg != pg {
+                            gyro_changed = true;
+                        }
+                    } else {
+                        gyro_changed = true;
+                    }
+                } else if prev_gyro.is_some() {
+                    gyro_changed = true;
+                }
 
-            // Computes projected gravity from the quaternion.
-            let gravity = quaternion.rotate(Vector3::new(0.0, 0.0, -1.0));
+                if gyro_changed {
+                    num_steps += 1;
+                }
 
-            println!(
-                "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                prev_gyro = current_gyro;
+
+                let accel = data.accelerometer.unwrap_or(Vector3::default());
+                let gyro_for_print = current_gyro.unwrap_or(Vector3::default());
+                let angle = data.euler.unwrap_or(Vector3::default());
+                let quaternion = data.quaternion.unwrap_or(Quaternion::default());
+                let magnetometer = data.magnetometer.unwrap_or(Vector3::default());
+                let gravity = quaternion.rotate(Vector3::new(0.0, 0.0, -1.0));
+
+                println!(
+                    "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                     gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3} (Changed: {})\n\
                      angle: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      quaternion: x: {: >10.3} y: {: >10.3} z: {: >10.3} w: {: >10.3}\n\
                      mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      temp:  {: >10.3}\n\
                      gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     num_steps: {: >10}\n\
-                     steps/sec: {: >10}\n\
+                     num_steps (gyro changed): {: >10}\n\
+                     steps/sec: {: >10.2}\n\
                      ",
-                accel.x,
-                accel.y,
-                accel.z,
-                gyro.x,
-                gyro.y,
-                gyro.z,
-                angle.x,
-                angle.y,
-                angle.z,
-                quaternion.x,
-                quaternion.y,
-                quaternion.z,
-                quaternion.w,
-                magnetometer.x,
-                magnetometer.y,
-                magnetometer.z,
-                data.temperature.unwrap_or(0.0),
-                gravity.x,
-                gravity.y,
-                gravity.z,
-                num_steps,
-                num_steps as f32 / start_time.elapsed().as_secs_f32(),
-            );
-        } else {
-            eprintln!("Failed to read data");
+                    accel.x,
+                    accel.y,
+                    accel.z,
+                    gyro_for_print.x,
+                    gyro_for_print.y,
+                    gyro_for_print.z,
+                    gyro_changed,
+                    angle.x,
+                    angle.y,
+                    angle.z,
+                    quaternion.x,
+                    quaternion.y,
+                    quaternion.z,
+                    quaternion.w,
+                    magnetometer.x,
+                    magnetometer.y,
+                    magnetometer.z,
+                    data.temperature.unwrap_or(0.0),
+                    gravity.x,
+                    gravity.y,
+                    gravity.z,
+                    num_steps,
+                    num_steps as f32 / start_time.elapsed().as_secs_f32(),
+                );
+            }
+            Err(e) if e.to_string().contains("No new data available") => {
+            }
+            Err(e) => {
+                eprintln!("Failed to read data: {}", e);
+            }
         }
 
-        thread::sleep(Duration::from_nanos(100000));
+        thread::sleep(Duration::from_millis(10));
     }
 }

@@ -4,14 +4,14 @@ use std::io;
 use std::sync::mpsc;
 
 // --- Basic Types ---
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
     pub z: f32,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Quaternion {
     pub w: f32,
     pub x: f32,
