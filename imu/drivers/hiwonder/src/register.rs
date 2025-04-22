@@ -180,6 +180,7 @@ pub struct EnableOutputCommand {
 }
 
 bitflags! {
+    #[derive(Debug)]
     pub struct Output: u16 {
         const TIME = 1 << 0; // 0x50
         const ACC = 1 << 1; // 0x51
@@ -199,7 +200,7 @@ impl EnableOutputCommand {
     pub fn new(output: Output) -> Self {
         let bits = output.bits();
         let data = [bits as u8, (bits >> 8) as u8];
-        let command = Command::new(Register::Axis6, data);
+        let command = Command::new(Register::Rsw, data);
         Self { command }
     }
 }

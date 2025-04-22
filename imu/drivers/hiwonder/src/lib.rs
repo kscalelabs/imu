@@ -57,7 +57,7 @@ impl IMU {
         self.write_command(&UnlockCommand::new())?; // Unlock
         self.write_command(&FusionAlgorithmCommand::new(FusionAlgorithm::SixAxis))?; // Axis6
         self.write_command(&EnableOutputCommand::new(enabled_outputs))?; // Enable
-        self.write_command(&RebootCommand::new())?; // Reboot
+        self.write_command(&SaveCommand::new())?; // Save
 
         // Set IMU frequency to a reasonable default.
         self.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz100))?;
