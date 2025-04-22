@@ -3,7 +3,32 @@ use std::io;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use hiwonder::port;
+
 fn main() -> io::Result<()> {
+
+    println!("starting hiwonder reader");
+    let mut hiwonder_port = port::ImuConfigPort::new("/dev/ttyUSB0", 921600)?;
+
+    println!("comms: {:?}", hiwonder_port.verify_comms(
+        std::time::Duration::from_millis(200),
+    ));
+
+    let valid_baud = hiwonder_port.find_valid_baud_rate(
+        &[9600, 921600, 230400, 460800, 115200, 57600, 38400, 19200],
+        std::time::Duration::from_millis(200),
+    );
+    println!("valid baud: {:?}", valid_baud);
+
+    // we are at valid baud
+    // TODO consume the port and get a stream at this valid baud
+    // eg hiwonder_port.into_stream()
+    // after this point, the port is no longer valid, we do all comms in the stream
+    // 
+    // TODO: stream can be changed back into port
+    // TODO: rename ImuPort to ImuConfigPort
+    // and stream to ImuStreamPort
+
     let (ports_to_try, baud_rate) = if cfg!(target_os = "linux") {
         (vec!["/dev/ttyUSB0"], 230400)
     } else if cfg!(target_os = "macos") {
