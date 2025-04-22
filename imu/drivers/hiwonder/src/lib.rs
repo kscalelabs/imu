@@ -206,7 +206,7 @@ impl HiwonderReader {
         }
     }
 
-    pub fn write_command(&self, command: &dyn Bytable, verify: bool, timeout: Duration) -> Result<(), ImuError> {
+    pub fn write_command(&self, command: &dyn (Bytable + RegisterAble), verify: bool, timeout: Duration) -> Result<(), ImuError> {
 
         if let Ok(mut mode_guard) = self.mode.write() {
             *mode_guard = ImuMode::Write;
@@ -222,7 +222,7 @@ impl HiwonderReader {
 
             if verify {
                 // Send generic read to read data at the set addr
-                port_guard.write_all(&ReadAddressCommand::new(Register::IicAddr as u8).to_bytes())
+                port_guard.write_all(&ReadAddressCommand::new(command.register()).to_bytes())
                     .map_err(ImuError::from)?;
 
                 let mut buffer = [0u8; 1024];

@@ -17,6 +17,7 @@ log = "0.4"
 serialport="4.7.1"
 imu-traits = "0.0.2"
 hexmove = "0.2.1"
-hiwonder = "0.5.1"
+# hiwonder = "0.5.1"
+hiwonder = { path = "drivers/hiwonder" }
 linux_bno055 = "0.1.1"
 linux_bmi088 =  "0.1.1"
