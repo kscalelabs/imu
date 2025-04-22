@@ -17,4 +17,4 @@ crate-type = ["rlib"]
 [dependencies]
 socketcan = "3.3.0"
 log = "0.4"
-imu-traits = "0.0.1"
+imu-traits = "0.0.2"
