@@ -1,4 +1,5 @@
 pub mod frame;
+pub mod port;
 pub mod register;
 pub use frame::*;
 pub use imu_traits::{ImuData, ImuError, ImuFrequency, ImuReader, Quaternion, Vector3};
