@@ -1,11 +1,16 @@
-    [package]
-    name = "hiwonder_macros"
-    version = "0.1.0"
-    edition = "2021"
+[package]
+name = "hiwonder_macros"
+version = "0.1.0"
+edition = "2021"
+readme = "README.md"
+description = "Macros for Hiwonder IMUs"
+authors = ["Wesley Maa <wesley@wesleymaa.com>"]
+repository.workspace = true
+license.workspace = true
 
-    [lib]
-    proc-macro = true
+[lib]
+proc-macro = true
 
-    [dependencies]
-    syn = { version = "2.0", features = ["full"] }
-    quote = "1.0"
+[dependencies]
+syn = { version = "2.0", features = ["full"] }
+quote = "1.0"
