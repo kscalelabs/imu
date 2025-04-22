@@ -43,3 +43,23 @@ pub fn derive_defaultable(input: TokenStream) -> TokenStream {
 
     TokenStream::from(expanded)
 }
+
+#[proc_macro_derive(RegisterAble)]
+pub fn derive_registerable(input: TokenStream) -> TokenStream {
+    // Parse the input tokens into a syntax tree
+    let input = parse_macro_input!(input as DeriveInput);
+
+    // Get the name of the struct we're deriving for
+    let name = input.ident;
+
+    // Build the output token stream
+    let expanded = quote! {
+        impl RegisterAble for #name {
+            fn register() -> Register {
+                self.register
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}

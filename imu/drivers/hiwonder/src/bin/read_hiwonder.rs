@@ -2,8 +2,17 @@ use hiwonder::{HiwonderReader, ImuReader, Quaternion, Vector3};
 use std::io;
 use std::thread;
 use std::time::{Duration, Instant};
+use tracing_subscriber::EnvFilter;
 
 fn main() -> io::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::from_default_env()
+                .add_directive("polling=off".parse().unwrap())
+                .add_directive("async_io=off".parse().unwrap()),
+        )
+        .init();
+
     let (ports_to_try, baud_rate) = if cfg!(target_os = "linux") {
         (vec!["/dev/ttyUSB0"], 230400)
     } else if cfg!(target_os = "macos") {
@@ -26,8 +35,8 @@ fn main() -> io::Result<()> {
                 reader = Some(r);
                 break;
             }
-            Err(_) => {
-                eprintln!("Failed to connect to {}", port);
+            Err(e) => {
+                eprintln!("Failed to connect to {}: {}", port, e);
             }
         }
     }

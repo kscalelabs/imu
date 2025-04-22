@@ -5,8 +5,8 @@ pub use imu_traits::{ImuData, ImuError, ImuFrequency, ImuReader, Quaternion, Vec
 pub use register::*;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
-use std::time::Duration;
-use tracing::{debug, error, warn};
+use std::time::{Duration, Instant};
+use tracing::{debug, error, info, warn};
 
 pub trait FrequencyToByte {
     fn to_byte(&self) -> u8;
@@ -27,80 +27,6 @@ impl FrequencyToByte for ImuFrequency {
             ImuFrequency::Hz200 => 0x0B,
             ImuFrequency::Single => 0x0C,
             ImuFrequency::None => 0x0D,
-        }
-    }
-}
-
-pub struct IMU {
-    port: Box<dyn serialport::SerialPort>,
-    frame_parser: FrameParser,
-}
-
-impl IMU {
-    pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
-        let port = serialport::new(interface, baud_rate)
-            .timeout(Duration::from_millis(500))
-            .open()?;
-
-        let mut imu = IMU {
-            port,
-            frame_parser: FrameParser::new(Some(512)),
-        };
-
-        imu.initialize()?;
-        Ok(imu)
-    }
-
-    fn initialize(&mut self) -> Result<(), ImuError> {
-        let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
-
-        // Send commands in sequence.
-        self.write_command(&UnlockCommand::new())?; // Unlock
-        self.write_command(&FusionAlgorithmCommand::new(FusionAlgorithm::SixAxis))?; // Axis6
-        self.write_command(&EnableOutputCommand::new(enabled_outputs))?; // Enable
-        self.write_command(&SaveCommand::new())?; // Save
-
-        // Set IMU frequency to a reasonable default.
-        self.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz100))?;
-
-        Ok(())
-    }
-
-    fn write_command(&mut self, command: &dyn Bytable) -> Result<(), ImuError> {
-        self.port
-            .write_all(&command.to_bytes())
-            .map_err(ImuError::from)?;
-        // 200 hz -> 5ms
-        std::thread::sleep(Duration::from_millis(30));
-        Ok(())
-    }
-
-    pub fn set_frequency(&mut self, frequency: ImuFrequency) -> Result<(), ImuError> {
-        self.write_command(&UnlockCommand::new())?;
-        self.write_command(&SetFrequencyCommand::new(frequency))?;
-        self.write_command(&SaveCommand::new())?;
-        Ok(())
-    }
-
-    pub fn set_baud_rate(&mut self, baud_rate: u32) -> Result<(), ImuError> {
-        self.write_command(&UnlockCommand::new())?;
-        self.write_command(&SetBaudRateCommand::new(BaudRate::try_from(baud_rate)?))?;
-        self.write_command(&SaveCommand::new())?;
-        self.port.set_baud_rate(baud_rate)?;
-        Ok(())
-    }
-
-    pub fn get_frames(&mut self) -> Result<Vec<ReadFrame>, ImuError> {
-        let mut buffer = [0u8; 1024];
-        match self.port.read(&mut buffer) {
-            Ok(n) => {
-                if n > 0 {
-                    Ok(self.frame_parser.parse(&buffer[0..n])?)
-                } else {
-                    Ok(vec![])
-                }
-            }
-            Err(e) => Err(ImuError::ReadError(format!("Failed to read data: {}", e))),
         }
     }
 }
@@ -146,6 +72,13 @@ impl HiwonderReader {
             timeout,
         };
 
+        let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
+
+        reader.write_command(&UnlockCommand::new(), false, Duration::from_secs(1))?;
+        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), true, Duration::from_secs(1))?;
+        reader.write_command(&EnableOutputCommand::new(enabled_outputs), true, Duration::from_secs(1))?;
+        reader.write_command(&SaveCommand::new(), false, Duration::from_secs(1))?;
+
         reader.start_reading_thread()?;
 
         Ok(reader)
@@ -177,7 +110,7 @@ impl HiwonderReader {
                     Ok(vec![])
                 }
             }
-            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(vec![]), // Timeout is expected
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(vec![]),
             Err(e) => Err(ImuError::ReadError(format!(
                 "Failed to read data from port: {}",
                 e
@@ -216,9 +149,6 @@ impl HiwonderReader {
             ReadFrame::Quaternion { w, x, y, z } => {
                 imu_data.quaternion = Some(Quaternion { w, x, y, z });
             }
-            ReadFrame::GenericRead { data } => {
-                imu_data.generic = Some(data);
-            }
             _ => (),
         }
     }
@@ -237,7 +167,7 @@ impl HiwonderReader {
                 if !*guard {
                     break;
                 }
-                
+
                 if let Ok(mode) = mode.read() {
                     if *mode == ImuMode::Read {
                         match Self::read_frames(&port, &frame_parser) {
@@ -277,36 +207,74 @@ impl HiwonderReader {
     }
 
     pub fn write_command(&self, command: &dyn Bytable, verify: bool, timeout: Duration) -> Result<(), ImuError> {
+
+        if let Ok(mut mode_guard) = self.mode.write() {
+            *mode_guard = ImuMode::Write;
+        }
+
+        let mut parser_guard = self.frame_parser.lock().map_err(|e| {
+            ImuError::ReadError(format!("Failed to acquire lock on frame parser: {}", e))
+        })?;
+
         if let Ok(mut port_guard) = self.port.lock() {
             port_guard.write_all(&command.to_bytes())
                 .map_err(ImuError::from)?;
-        }
 
-        if verify {
-            let mut buffer = [0u8; 1024];
-            let mut start_time = Instant::now();
-            while start_time.elapsed() < timeout {
-                if let Ok(n) = port_guard.read(&mut buffer) {
-                    if n > 0 {
-                        if let Ok(response) = FrameParser::parse(&buffer[0..n]) {
-                            if response.is_empty() {
-                                return Err(ImuError::ReadError("No response from IMU".to_string()));
+            if verify {
+                // Send generic read to read data at the set addr
+                port_guard.write_all(&ReadAddressCommand::new(Register::IicAddr as u8).to_bytes())
+                    .map_err(ImuError::from)?;
+
+                let mut buffer = [0u8; 1024];
+                let start_time = Instant::now();
+                while start_time.elapsed() < timeout {
+                    if let Ok(n) = port_guard.read(&mut buffer) {
+                        if n > 0 {
+                            if let Ok(response) = parser_guard.parse(&buffer[0..n]) {
+                                for frame in response {
+                                    match frame {
+                                        ReadFrame::GenericRead { data } => {
+                                            if data == command.to_bytes().as_slice() {
+                                                info!("Command {:?} sent and verified", command.to_bytes().as_slice());
+                                                return Ok(());
+                                            }
+                                        }
+                                        _ => debug!("Received unexpected frame: {:?}", frame),
+                                    }
+                                }
                             }
                         }
-                    }
-                }   
+                    }   
+                }
+                error!("Command {:?} sent but timed out before matching response received", command.to_bytes().as_slice());
+                return Err(ImuError::ReadError("No response from IMU".to_string()));
             }
         }
 
+        if let Ok(mut mode_guard) = self.mode.write() {
+            *mode_guard = ImuMode::Read;
+        }
         Ok(())
     }
 
-    pub fn set_frequency(&self, frequency: ImuFrequency) -> Result<(), ImuError> {
-        unimplemented!("Command channel not fully set up");
+    pub fn set_frequency(&self, frequency: ImuFrequency, timeout: Duration) -> Result<(), ImuError> {
+        if let Ok(mut mode_guard) = self.mode.write() {
+            *mode_guard = ImuMode::Write;
+        }
+        self.write_command(&UnlockCommand::new(), false, timeout)?;
+        self.write_command(&SetFrequencyCommand::new(frequency), true, timeout)?;
+        self.write_command(&SaveCommand::new(), false, timeout)?;
+        Ok(())
     }
 
-    pub fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ImuError> {
-        unimplemented!("Command channel not fully set up");
+    pub fn set_baud_rate(&self, baud_rate: u32, timeout: Duration) -> Result<(), ImuError> {
+        if let Ok(mut mode_guard) = self.mode.write() {
+            *mode_guard = ImuMode::Write;
+        }
+        self.write_command(&UnlockCommand::new(), false, timeout)?;
+        self.write_command(&SetBaudRateCommand::new(BaudRate::try_from(baud_rate).unwrap()), true, timeout)?;
+        self.write_command(&SaveCommand::new(), false, timeout)?;
+        Ok(())
     }
 }
 
