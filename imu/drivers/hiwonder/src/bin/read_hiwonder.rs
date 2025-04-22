@@ -1,7 +1,7 @@
 use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Quaternion, Vector3};
 use std::io;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 fn main() -> io::Result<()> {
     let (ports_to_try, baud_rate) = if cfg!(target_os = "linux") {
@@ -42,14 +42,14 @@ fn main() -> io::Result<()> {
         }
     };
 
-    match reader.set_frequency(ImuFrequency::Hz200) {
-        Ok(_) => println!("Set frequency to 200hz"),
-        Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
-    }
+    let mut num_steps = 0;
+    let start_time = Instant::now();
 
     loop {
         match reader.get_data() {
             Ok(data) => {
+                num_steps += 1;
+
                 let accel = data.accelerometer.unwrap_or(Vector3::default());
                 let gyro = data.gyroscope.unwrap_or(Vector3::default());
                 let angle = data.euler.unwrap_or(Vector3::default());
@@ -67,6 +67,8 @@ fn main() -> io::Result<()> {
                      mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                      temp:  {: >10.3}\n\
                      gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                     num_steps: {: >10}\n\
+                     steps/sec: {: >10}\n\
                      ",
                     accel.x,
                     accel.y,
@@ -88,11 +90,13 @@ fn main() -> io::Result<()> {
                     gravity.x,
                     gravity.y,
                     gravity.z,
+                    num_steps,
+                    num_steps as f32 / start_time.elapsed().as_secs_f32(),
                 );
             }
-            Err(e) => eprintln!("Error reading from IMU: {}", e),
+            Err(_) => (),
         }
 
-        thread::sleep(Duration::from_millis(10));
+        thread::sleep(Duration::from_nanos(100));
     }
 }

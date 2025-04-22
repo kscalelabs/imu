@@ -12,9 +12,37 @@ pub struct Vector3 {
     pub z: f32,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Quaternion {
+    pub w: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
 impl Vector3 {
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
+    }
+
+    pub fn euler_to_quaternion(&self) -> Quaternion {
+        // Convert Euler angles (in radians) to quaternion
+        // Using the ZYX rotation order (yaw, pitch, roll)
+        let (roll, pitch, yaw) = (self.x, self.y, self.z);
+
+        let cr = (roll * 0.5).cos();
+        let sr = (roll * 0.5).sin();
+        let cp = (pitch * 0.5).cos();
+        let sp = (pitch * 0.5).sin();
+        let cy = (yaw * 0.5).cos();
+        let sy = (yaw * 0.5).sin();
+
+        let w = cr * cp * cy + sr * sp * sy;
+        let x = sr * cp * cy - cr * sp * sy;
+        let y = cr * sp * cy + sr * cp * sy;
+        let z = cr * cp * sy - sr * sp * cy;
+
+        Quaternion { w, x, y, z }
     }
 }
 
@@ -22,14 +50,6 @@ impl fmt::Display for Vector3 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Vector3(x={}, y={}, z={})", self.x, self.y, self.z)
     }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Quaternion {
-    pub w: f32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
 }
 
 impl Quaternion {

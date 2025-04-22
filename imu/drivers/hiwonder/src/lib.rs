@@ -38,6 +38,39 @@ impl FrequencyToByte for ImuFrequency {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ImuRswName {
+    Time,
+    Accelerometer,
+    Gyroscope,
+    EulerAngle,
+    MagneticField,
+    PortStatus,
+    BarometricAltitude,
+    LatitudeAndLongitude,
+    GroundSpeed,
+    Quaternion,
+    GPSPositioningAccuracy,
+}
+
+impl ImuRswName {
+    pub fn to_byte(&self) -> u8 {
+        match self {
+            ImuRswName::Time => 0x00,
+            ImuRswName::Accelerometer => 0x01,
+            ImuRswName::Gyroscope => 0x02,
+            ImuRswName::EulerAngle => 0x04,
+            ImuRswName::MagneticField => 0x08,
+            ImuRswName::PortStatus => 0x10,
+            ImuRswName::BarometricAltitude => 0x20,
+            ImuRswName::LatitudeAndLongitude => 0x40,
+            ImuRswName::GroundSpeed => 0x80,
+            ImuRswName::Quaternion => 0x0A,
+            ImuRswName::GPSPositioningAccuracy => 0x10,
+        }
+    }
+}
+
 pub struct IMU {
     port: Box<dyn serialport::SerialPort>,
     frame_state: FrameState,
@@ -85,28 +118,18 @@ impl IMU {
     }
 
     fn initialize(&mut self) -> Result<(), ImuError> {
-        // * Set IMU Parameters to Read
-        // Commands as vectors
-        let unlock_cmd = vec![0xFF, 0xAA, 0x69, 0x88, 0xB5];
-        // Enable Acceleration (0x02), Gyro (0x04), Angle (0x08), Mag (0x10), and Quaternion (0x0200)
-        // Low byte: 0x02 | 0x04 | 0x08 | 0x10 = 0x1E
-        // High byte: 0x02
-        // let config_cmd = vec![0xFF, 0xAA, 0x02, 0x1E, 0x02];
-        let config_cmd = vec![0xFF, 0xAA, 0x02, 0xFF, 0x07]; // 0x07FF = all bits set
-        let save_cmd = vec![0xFF, 0xAA, 0x00, 0x00, 0x00];
-
-        // Alternative:
-        // let mut packet = Vec::with_capacity(5 + data.len());
-        // packet.push(0x55); // many of these...
-        // self.port.write_all(&packet)
+        let low_byte = 0x02 | 0x04 | 0x08;
+        let high_byte = 0x02;
 
         // Send commands in sequence.
-        self.write_command(&unlock_cmd)?;
-        self.write_command(&config_cmd)?;
-        self.write_command(&save_cmd)?;
+        self.write_command(&vec![0xFF, 0xAA, 0x69, 0x88, 0xB5])?; // Unlock
+        self.write_command(&vec![0xFF, 0xAA, 0x24, 0x01, 0x00])?; // Axis6
+        self.write_command(&vec![0xFF, 0xAA, 0x02, low_byte, high_byte])?; // Enable
+        self.write_command(&vec![0xFF, 0xAA, 0x00, 0x00, 0xFF])?; // Reboot
 
         // Set IMU frequency to a reasonable default.
         self.set_frequency(ImuFrequency::Hz100)?;
+
         Ok(())
     }
 
@@ -329,6 +352,7 @@ pub struct HiwonderReader {
     data: Arc<RwLock<ImuData>>,
     command_tx: mpsc::Sender<ImuCommand>,
     running: Arc<RwLock<bool>>,
+    data_read: Arc<RwLock<bool>>, // Track if data has been read
 }
 
 #[derive(Debug)]
@@ -342,12 +366,14 @@ impl HiwonderReader {
     pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
         let data = Arc::new(RwLock::new(ImuData::default()));
         let running = Arc::new(RwLock::new(true));
+        let data_read = Arc::new(RwLock::new(true));
         let (command_tx, command_rx) = mpsc::channel();
 
         let reader = HiwonderReader {
             data: Arc::clone(&data),
             command_tx,
             running: Arc::clone(&running),
+            data_read: Arc::clone(&data_read),
         };
 
         reader.start_reading_thread(interface, baud_rate, command_rx)?;
@@ -363,6 +389,7 @@ impl HiwonderReader {
     ) -> Result<(), ImuError> {
         let data = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);
+        let data_read = Arc::clone(&self.data_read);
         let interface = interface.to_string();
 
         let (tx, rx) = mpsc::channel();
@@ -435,6 +462,11 @@ impl HiwonderReader {
                                 z: mag[2],
                             });
                             imu_data.temperature = Some(temp);
+
+                            // Mark data as unread when new data arrives
+                            if let Ok(mut read) = data_read.write() {
+                                *read = false;
+                            }
                         }
                     }
                     Ok(None) => (), // No complete data available yet
@@ -473,10 +505,28 @@ impl ImuReader for HiwonderReader {
     }
 
     fn get_data(&self) -> Result<ImuData, ImuError> {
-        self.data
+        // Check if data has been read
+        if let Ok(read) = self.data_read.read() {
+            if *read {
+                return Err(ImuError::ReadError("No new data available".to_string()));
+            }
+        }
+
+        // Get the data
+        let result = self
+            .data
             .read()
             .map(|data| data.clone())
-            .map_err(|_| ImuError::ReadError("Lock error".to_string()))
+            .map_err(|_| ImuError::ReadError("Lock error".to_string()));
+
+        // Mark data as read if we successfully got it
+        if result.is_ok() {
+            if let Ok(mut read) = self.data_read.write() {
+                *read = true;
+            }
+        }
+
+        result
     }
 }
 
