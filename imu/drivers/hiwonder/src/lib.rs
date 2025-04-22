@@ -381,7 +381,7 @@ impl HiwonderReader {
             data_read: Arc::clone(&data_read),
         };
 
-        reader.start_reading_thread(interface,, command_rx)?;
+        reader.start_reading_thread(interface, command_rx)?;
 
         Ok(reader)
     }
