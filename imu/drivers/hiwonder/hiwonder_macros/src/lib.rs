@@ -55,7 +55,7 @@ pub fn derive_registerable(input: TokenStream) -> TokenStream {
     // Build the output token stream
     let expanded = quote! {
         impl RegisterAble for #name {
-            fn register() -> Register {
+            fn register(&self) -> Register {
                 self.register
             }
         }
