@@ -4,13 +4,13 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 fn main() -> io::Result<()> {
-    let (ports_to_try, baud_rate) = if cfg!(target_os = "linux") {
-        (vec!["/dev/ttyUSB0"], 230400)
+    let ports_to_try = if cfg!(target_os = "linux") {
+        vec!["/dev/ttyUSB0"]
     } else if cfg!(target_os = "macos") {
         // TODO: This is probably not the best way to do this (can only read
         // at baud rate 9600) but it is useful for debugging the numerical
         // values while on a Mac.
-        (vec!["/dev/tty.usbserial-83420"], 9600)
+        vec!["/dev/tty.usbserial-83420"]
     } else {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -20,7 +20,7 @@ fn main() -> io::Result<()> {
 
     let mut reader = None;
     for port in ports_to_try {
-        match HiwonderReader::new(&port, baud_rate) {
+        match HiwonderReader::new(&port) {
             Ok(r) => {
                 println!("Successfully connected to {}", port);
                 reader = Some(r);

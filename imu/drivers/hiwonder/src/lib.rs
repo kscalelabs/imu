@@ -127,6 +127,7 @@ impl IMU {
         // The datasheet for these values is available here:
         // https://github.com/YahboomTechnology/10-axis_IMU_Module
         self.write_command(&vec![0xFF, 0xAA, 0x69, 0x88, 0xB5])?; // Unlock
+        self.write_command(&vec![0xFF, 0xAA, 0x04, 0x06, 0x00])?; // Baud rate
         self.write_command(&vec![0xFF, 0xAA, 0x2A, 0xFF, 0x00])?; // ACCFILT
         self.write_command(&vec![0xFF, 0xAA, 0x02, mask as u8, (mask >> 8) as u8])?; // RSW
         self.write_command(&vec![0xFF, 0xAA, 0x00, 0x00, 0x00])?; // Save
@@ -367,7 +368,7 @@ pub enum ImuCommand {
 }
 
 impl HiwonderReader {
-    pub fn new(interface: &str, baud_rate: u32) -> Result<Self, ImuError> {
+    pub fn new(interface: &str) -> Result<Self, ImuError> {
         let data = Arc::new(RwLock::new(ImuData::default()));
         let running = Arc::new(RwLock::new(true));
         let data_read = Arc::new(RwLock::new(true));
@@ -380,7 +381,7 @@ impl HiwonderReader {
             data_read: Arc::clone(&data_read),
         };
 
-        reader.start_reading_thread(interface, baud_rate, command_rx)?;
+        reader.start_reading_thread(interface,, command_rx)?;
 
         Ok(reader)
     }
@@ -388,7 +389,6 @@ impl HiwonderReader {
     fn start_reading_thread(
         &self,
         interface: &str,
-        baud_rate: u32,
         command_rx: mpsc::Receiver<ImuCommand>,
     ) -> Result<(), ImuError> {
         let data = Arc::clone(&self.data);
@@ -400,7 +400,7 @@ impl HiwonderReader {
 
         thread::spawn(move || {
             // Initialize IMU inside the thread and send result back
-            let init_result = IMU::new(&interface, baud_rate);
+            let init_result = IMU::new(&interface, 115200);
             if let Err(e) = init_result {
                 let _ = tx.send(Err(e));
                 return;
