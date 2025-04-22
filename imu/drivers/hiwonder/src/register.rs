@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use hiwonder_macros::{BytableCommand, DefaultableCommand, RegisterAble};
+use hiwonder_macros::{BytableCommand, DefaultableCommand, Registrable, RegistrableCommand};
 use imu_traits::{ImuError, ImuFrequency};
 
 #[repr(u8)]
@@ -112,11 +112,11 @@ pub trait Bytable {
     fn to_bytes(&self) -> Vec<u8>;
 }
 
-pub trait RegisterAble {
+pub trait Registrable {
     fn register(&self) -> Register;
 }
 
-#[derive(RegisterAble)]
+#[derive(Registrable)]
 pub struct Command {
     pub register: Register,
     pub data: [u8; 2],
@@ -144,7 +144,7 @@ impl Default for Command {
 }
 
 // Common commands
-#[derive(BytableCommand, DefaultableCommand, RegisterAble)]
+#[derive(BytableCommand, DefaultableCommand, RegistrableCommand)]
 pub struct UnlockCommand {
     pub command: Command,
 }
@@ -156,7 +156,7 @@ impl UnlockCommand {
     }
 }
 
-#[derive(BytableCommand, RegisterAble)]
+#[derive(BytableCommand, RegistrableCommand)]
 pub struct ReadAddressCommand {
     pub command: Command,
 }
@@ -174,7 +174,7 @@ impl Default for ReadAddressCommand {
     }
 }
 
-#[derive(BytableCommand, RegisterAble)]
+#[derive(BytableCommand, RegistrableCommand)]
 pub struct FusionAlgorithmCommand {
     pub command: Command,
 }
@@ -201,7 +201,7 @@ impl Default for FusionAlgorithmCommand {
     }
 }
 
-#[derive(BytableCommand, RegisterAble)]
+#[derive(BytableCommand, RegistrableCommand)]
 pub struct EnableOutputCommand {
     pub command: Command,
 }
@@ -238,7 +238,7 @@ impl Default for EnableOutputCommand {
     }
 }
 
-#[derive(BytableCommand, DefaultableCommand, RegisterAble)]
+#[derive(BytableCommand, DefaultableCommand, RegistrableCommand)]
 pub struct SaveCommand {
     pub command: Command,
 }
@@ -250,7 +250,7 @@ impl SaveCommand {
     }
 }
 
-#[derive(BytableCommand, DefaultableCommand, RegisterAble)]
+#[derive(BytableCommand, DefaultableCommand, RegistrableCommand)]
 pub struct RebootCommand {
     pub command: Command,
 }
@@ -262,7 +262,7 @@ impl RebootCommand {
     }
 }
 
-#[derive(BytableCommand, DefaultableCommand, RegisterAble)]
+#[derive(BytableCommand, DefaultableCommand, RegistrableCommand)]
 pub struct FactoryResetCommand {
     pub command: Command,
 }
@@ -293,7 +293,7 @@ impl Bytable for ImuFrequency {
     }
 }
 
-#[derive(BytableCommand, RegisterAble)]
+#[derive(BytableCommand, RegistrableCommand)]
 pub struct SetFrequencyCommand {
     pub command: Command,
 }
@@ -312,7 +312,7 @@ impl Default for SetFrequencyCommand {
     }
 }
 
-#[derive(BytableCommand, RegisterAble)]
+#[derive(BytableCommand, RegistrableCommand)]
 pub struct SetBaudRateCommand {
     pub command: Command,
 }
