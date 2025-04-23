@@ -1,125 +1,205 @@
+use clap::Parser;
 use hiwonder::{HiwonderReader, ImuReader, Quaternion, Vector3};
 use std::io;
-use std::thread;
+use std::thread::sleep;
 use std::time::{Duration, Instant};
-use tracing_subscriber::EnvFilter;
 
-fn main() -> io::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::from_default_env()
-                .add_directive("polling=off".parse().unwrap())
-                .add_directive("async_io=off".parse().unwrap()),
-        )
-        .init();
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long, default_value = "/dev/ttyUSB0")]
+    device: String,
 
-    let (ports_to_try, baud_rate) = if cfg!(target_os = "linux") {
-        (vec!["/dev/ttyUSB0"], 230400)
-    } else if cfg!(target_os = "macos") {
-        // TODO: This is probably not the best way to do this (can only read
-        // at baud rate 9600) but it is useful for debugging the numerical
-        // values while on a Mac.
-        (vec!["/dev/tty.usbserial-110"], 9600)
-    } else {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Unsupported OS: {}", std::env::consts::OS),
-        ));
-    };
+    #[clap(short, long, default_value_t = 230400)]
+    baud_rate: u32,
+}
 
-    let mut reader = None;
-    for port in ports_to_try {
-        match HiwonderReader::new(port, baud_rate, Duration::from_secs(1)) {
-            Ok(r) => {
-                println!("Successfully connected to {}", port);
-                reader = Some(r);
-                break;
-            }
-            Err(e) => {
-                eprintln!("Failed to connect to {}: {}", port, e);
-            }
+#[derive(Debug, Clone)]
+struct SensorFrame {
+    accelerometer: Vector3,
+    gyroscope: Vector3,
+    euler: Vector3,
+    quaternion: Quaternion,
+    magnetometer: Vector3,
+    temperature: f32,
+}
+
+impl SensorFrame {
+    fn from_data(data: &hiwonder::ImuData) -> Self {
+        SensorFrame {
+            accelerometer: data.accelerometer.unwrap_or_default(),
+            gyroscope: data.gyroscope.unwrap_or_default(),
+            euler: data.euler.unwrap_or_default(),
+            quaternion: data.quaternion.unwrap_or_default(),
+            magnetometer: data.magnetometer.unwrap_or_default(),
+            temperature: data.temperature.unwrap_or_default(),
         }
     }
 
-    let reader = match reader {
-        Some(r) => r,
-        None => {
+    fn is_duplicate(&self, other: &SensorFrame) -> (bool, Vec<&str>) {
+        let mut changed_sensors = Vec::new();
+
+        // Check each sensor independently
+        if self.accelerometer != other.accelerometer {
+            changed_sensors.push("accel");
+        }
+        if self.gyroscope != other.gyroscope {
+            changed_sensors.push("gyro");
+        }
+        if self.euler != other.euler {
+            changed_sensors.push("euler");
+        }
+        if self.quaternion != other.quaternion {
+            changed_sensors.push("quat");
+        }
+        if self.magnetometer != other.magnetometer {
+            changed_sensors.push("mag");
+        }
+        if self.temperature != other.temperature {
+            changed_sensors.push("temp");
+        }
+
+        // If any sensor changed, it's not a duplicate
+        (changed_sensors.is_empty(), changed_sensors)
+    }
+}
+
+#[derive(Debug)]
+struct Stats {
+    total_readings: u64,
+    unique_readings: u64,
+    sensor_changes: std::collections::HashMap<String, u64>,
+    missed_deadlines: u64,
+    start_time: Instant,
+}
+
+impl Stats {
+    fn new() -> Self {
+        let mut sensor_changes = std::collections::HashMap::new();
+        sensor_changes.insert("accel".to_string(), 0);
+        sensor_changes.insert("gyro".to_string(), 0);
+        sensor_changes.insert("euler".to_string(), 0);
+        sensor_changes.insert("quat".to_string(), 0);
+        sensor_changes.insert("mag".to_string(), 0);
+        sensor_changes.insert("temp".to_string(), 0);
+
+        Stats {
+            total_readings: 0,
+            unique_readings: 0,
+            sensor_changes,
+            missed_deadlines: 0,
+            start_time: Instant::now(),
+        }
+    }
+}
+
+fn main() -> io::Result<()> {
+    let args = Args::parse();
+    let (port, baud_rate) = (args.device, args.baud_rate);
+
+    println!("Attempting to connect to {} at {} baud...", port, baud_rate);
+    let reader = match HiwonderReader::new(&port, baud_rate) {
+        Ok(r) => {
+            println!("Successfully connected to {}", port);
+            r
+        }
+        Err(e) => {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                "No valid port found",
+                format!("Failed to connect to {}: {}", port, e),
             ))
         }
     };
 
-    let mut num_steps = 0;
-    let start_time = Instant::now();
-    let mut prev_gyro: Option<Vector3> = None;
+    let mut stats = Stats::new();
+    let mut prev_frame: Option<SensorFrame> = None;
+
+    println!("Starting IMU readings at 100Hz...");
+    println!("Press Ctrl+C to exit\n");
+
+    let hz = 100.0;
+    let period = Duration::from_secs_f64(1.0 / hz);
+    let mut next_time = Instant::now() + period;
 
     loop {
         match reader.get_data() {
             Ok(data) => {
-                let current_gyro = data.gyroscope;
+                stats.total_readings += 1;
+                let current_frame = SensorFrame::from_data(&data);
 
-                let mut gyro_changed = false;
-                if let Some(cg) = current_gyro {
-                    if let Some(pg) = prev_gyro {
-                        if cg != pg {
-                            gyro_changed = true;
+                // Check for unique reading and track which sensors changed
+                let (is_duplicate, changed_sensors) = if let Some(prev) = &prev_frame {
+                    current_frame.is_duplicate(prev)
+                } else {
+                    (false, vec![])
+                };
+
+                if !is_duplicate {
+                    stats.unique_readings += 1;
+                    // Update change counts for each sensor
+                    for sensor in &changed_sensors {
+                        // Changed to use reference
+                        if let Some(count) = stats.sensor_changes.get_mut(*sensor) {
+                            *count += 1;
                         }
-                    } else {
-                        gyro_changed = true;
                     }
-                } else if prev_gyro.is_some() {
-                    gyro_changed = true;
                 }
 
-                if gyro_changed {
-                    num_steps += 1;
-                }
+                // Update previous frame
+                prev_frame = Some(current_frame.clone());
 
-                prev_gyro = current_gyro;
-
-                let accel = data.accelerometer.unwrap_or(Vector3::default());
-                let gyro_for_print = current_gyro.unwrap_or(Vector3::default());
-                let angle = data.euler.unwrap_or(Vector3::default());
-                let quaternion = data.quaternion.unwrap_or(Quaternion::default());
-                let magnetometer = data.magnetometer.unwrap_or(Vector3::default());
-                let gravity = quaternion.rotate(Vector3::new(0.0, 0.0, -1.0));
+                // Calculate current frequencies
+                let runtime = stats.start_time.elapsed().as_secs_f64();
+                let raw_rate = stats.total_readings as f64 / runtime;
+                let effective_rate = stats.unique_readings as f64 / runtime;
 
                 println!(
                     "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3} (Changed: {})\n\
-                     angle: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     quaternion: x: {: >10.3} y: {: >10.3} z: {: >10.3} w: {: >10.3}\n\
-                     mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     temp:  {: >10.3}\n\
-                     gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                     num_steps (gyro changed): {: >10}\n\
-                     steps/sec: {: >10.2}\n\
-                     ",
-                    accel.x,
-                    accel.y,
-                    accel.z,
-                    gyro_for_print.x,
-                    gyro_for_print.y,
-                    gyro_for_print.z,
-                    gyro_changed,
-                    angle.x,
-                    angle.y,
-                    angle.z,
-                    quaternion.x,
-                    quaternion.y,
-                    quaternion.z,
-                    quaternion.w,
-                    magnetometer.x,
-                    magnetometer.y,
-                    magnetometer.z,
-                    data.temperature.unwrap_or(0.0),
-                    gravity.x,
-                    gravity.y,
-                    gravity.z,
-                    num_steps,
-                    num_steps as f32 / start_time.elapsed().as_secs_f32(),
+                    gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                    angle: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                    quaternion: x: {: >10.3} y: {: >10.3} z: {: >10.3} w: {: >10.3}\n\
+                    mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                    temp:  {: >10.3}\n\
+                    gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                    Duplicate: {} {}\n\
+                    Rate: {:.1} Hz effective ({:.1} Hz raw)\n",
+                    current_frame.accelerometer.x,
+                    current_frame.accelerometer.y,
+                    current_frame.accelerometer.z,
+                    current_frame.gyroscope.x,
+                    current_frame.gyroscope.y,
+                    current_frame.gyroscope.z,
+                    current_frame.euler.x,
+                    current_frame.euler.y,
+                    current_frame.euler.z,
+                    current_frame.quaternion.x,
+                    current_frame.quaternion.y,
+                    current_frame.quaternion.z,
+                    current_frame.quaternion.w,
+                    current_frame.magnetometer.x,
+                    current_frame.magnetometer.y,
+                    current_frame.magnetometer.z,
+                    current_frame.temperature,
+                    data.quaternion
+                        .unwrap_or(Quaternion::default())
+                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .x,
+                    data.quaternion
+                        .unwrap_or(Quaternion::default())
+                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .y,
+                    data.quaternion
+                        .unwrap_or(Quaternion::default())
+                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .z,
+                    is_duplicate,
+                    if !is_duplicate {
+                        format!("(changed: {})", changed_sensors.join(", "))
+                    } else {
+                        String::new()
+                    },
+                    effective_rate,
+                    raw_rate
                 );
             }
             Err(e) if e.to_string().contains("No new data available") => {}
@@ -128,6 +208,15 @@ fn main() -> io::Result<()> {
             }
         }
 
-        thread::sleep(Duration::from_millis(10));
+        //Loop Timing Control with Drift Correction
+        let now = Instant::now();
+        if next_time > now {
+            sleep(next_time - now);
+        } else {
+            // we're behind schedule, don't sleep
+            println!("⚠️ Missed target by {:?}", now - next_time);
+            stats.missed_deadlines += 1;
+        }
+        next_time += period;
     }
 }
