@@ -104,19 +104,6 @@ impl HiwonderReader {
             guard.clear_buffer();
         }
 
-        let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
-
-        let setup_timeout = Duration::from_secs(1);
-        reader.write_command(
-            &EnableOutputCommand::new(enabled_outputs),
-            true,
-            setup_timeout,
-        )?;
-        reader.write_command(
-            &SetFrequencyCommand::new(ImuFrequency::Hz200),
-            true,
-            setup_timeout,
-        )?;
         reader.start_reading_thread()?;
 
         Ok(reader)

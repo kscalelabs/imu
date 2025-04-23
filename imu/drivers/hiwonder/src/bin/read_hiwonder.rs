@@ -1,7 +1,7 @@
 // Example usage:
 // RUST_LOG=info cargo run --bin read_hiwonder -- --device /dev/tty.usbserial-110 --baud_rate 230400
 use clap::Parser;
-use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Quaternion, Vector3};
+use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Output, Quaternion, Vector3};
 use std::io;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -138,6 +138,14 @@ fn main() -> io::Result<()> {
                 io::ErrorKind::Other,
                 format!("Failed to set frequency: {}", e),
             )
+        })?;
+
+    reader.set_output_mode(
+            Output::QUATERNION | Output::ANGLE | Output::MAG | Output::ACC | Output::GYRO,
+            Duration::from_secs(1),
+        )
+        .map_err(|e| {
+            io::Error::new(io::ErrorKind::Other, format!("Failed to set output mode: {}", e))
         })?;
 
     let mut stats = Stats::new();

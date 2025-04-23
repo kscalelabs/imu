@@ -1,6 +1,6 @@
 [package]
 name = "hiwonder"
-version = "0.6.0"
+version = "0.6.1"
 readme = "README.md"
 description = "Interface for interacting with Hiwonder IMUs"
 edition = "2021"
