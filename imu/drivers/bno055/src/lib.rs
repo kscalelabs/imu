@@ -13,7 +13,7 @@ use registers::{
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub struct BnoI2CError(LinuxI2CError);
 
@@ -52,8 +52,14 @@ impl Bno055 {
         // Reset the device
         bno.reset()?;
 
+        thread::sleep(Duration::from_secs(1));
+
         // Configure for NDOF mode (9-axis fusion)
         bno.set_mode(OperationMode::Ndof)?;
+
+        thread::sleep(Duration::from_secs(1));
+
+        
 
         Ok(bno)
     }
@@ -314,7 +320,9 @@ impl Bno055Reader {
     ) {
         thread::spawn(move || {
             debug!("BNO055 reading thread started");
+            let mut next_time = Instant::now();
             loop {
+                next_time += Duration::from_millis(2);
                 // Process any pending commands
                 if let Ok(command) = command_rx.try_recv() {
                     match command {
@@ -341,11 +349,11 @@ impl Bno055Reader {
                     warn!("Failed to get quaternion");
                 }
 
-                if let Ok(euler) = imu.get_euler_angles() {
+               /* if let Ok(euler) = imu.get_euler_angles() {
                     data_holder.euler = Some(euler);
                 } else {
                     warn!("Failed to get euler angles");
-                }
+                }*/
 
                 if let Ok(accel) = imu.get_accelerometer() {
                     data_holder.accelerometer = Some(accel);
@@ -359,17 +367,17 @@ impl Bno055Reader {
                     warn!("Failed to get gyroscope");
                 }
 
-                if let Ok(mag) = imu.get_magnetometer() {
+                /*if let Ok(mag) = imu.get_magnetometer() {
                     data_holder.magnetometer = Some(mag);
                 } else {
                     warn!("Failed to get magnetometer");
-                }
+                }*/
 
-                if let Ok(linear_accel) = imu.get_linear_acceleration() {
+                /*if let Ok(linear_accel) = imu.get_linear_acceleration() {
                     data_holder.linear_acceleration = Some(linear_accel);
                 } else {
                     warn!("Failed to get linear acceleration");
-                }
+                }*/
 
                 if let Ok(gravity) = imu.get_gravity_vector() {
                     data_holder.gravity = Some(gravity);
@@ -377,11 +385,11 @@ impl Bno055Reader {
                     warn!("Failed to get gravity vector");
                 }
 
-                if let Ok(temp) = imu.get_temperature() {
+                /*if let Ok(temp) = imu.get_temperature() {
                     data_holder.temperature = Some(temp as f32);
                 } else {
                     warn!("Failed to get temperature");
-                }
+                }*/
 
                 if let Ok(status) = imu.get_calibration_status() {
                     data_holder.calibration_status = Some(status);
@@ -394,8 +402,12 @@ impl Bno055Reader {
                     *imu_data = data_holder;
                 }
 
-                // IMU sends data at 100 Hz
-                thread::sleep(Duration::from_millis(10));
+                let now = Instant::now();
+                if now < next_time {
+                    thread::sleep(next_time - now);
+                } else {
+                    warn!("IMU thread missed deadline by {:?}", now - next_time);
+                }
             }
             debug!("BNO055 reading thread exiting");
         });
