@@ -6,7 +6,7 @@ pub use register::*;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 pub trait FrequencyToByte {
     fn to_byte(&self) -> u8;
@@ -72,13 +72,11 @@ impl HiwonderReader {
             timeout,
         };
 
-        let enabled_outputs = Output::empty(); //Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
+        let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
 
-        reader.write_command(&UnlockCommand::new(), false, Duration::from_secs(10))?;
+
         reader.write_command(&EnableOutputCommand::new(enabled_outputs), false, Duration::from_secs(10))?;
-        reader.write_command(&SaveCommand::new(), false, Duration::from_secs(10))?;
-        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), false, Duration::from_secs(10))?;
-
+            // reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), false, Duration::from_secs(10))?;
         reader.start_reading_thread()?;
 
         Ok(reader)
@@ -177,6 +175,7 @@ impl HiwonderReader {
                                 }
                                 for frame in frames {
                                     if let Ok(mut imu_data) = data.write() {
+                                        debug!("Setting data for frame: {:?}", frame);
                                         Self::set_data(&mut imu_data, &frame);
                                     } else {
                                         error!("Failed to write to IMU data");
@@ -207,65 +206,152 @@ impl HiwonderReader {
     }
 
     pub fn write_command(&self, command: &dyn BytableRegistrable, verify: bool, timeout: Duration) -> Result<(), ImuError> {
-
-        if let Ok(mut mode_guard) = self.mode.write() {
+        {
+            let mut mode_guard = self.mode.write().map_err(|_| ImuError::WriteError("Mode lock poisoned".to_string()))?;
             *mode_guard = ImuMode::Write;
+            debug!("Mode set to Write for register {:?}.", command.register());
         }
 
-        let mut parser_guard = self.frame_parser.lock().map_err(|e| {
-            ImuError::ReadError(format!("Failed to acquire lock on frame parser: {}", e))
-        })?;
+        struct ModeGuard<'a> {
+            mode: &'a Arc<RwLock<ImuMode>>,
+        }
 
-        if let Ok(mut port_guard) = self.port.lock() {
-            port_guard.write_all(&command.to_bytes())
-                .map_err(ImuError::from)?;
-
-            std::thread::sleep(Duration::from_millis(30));
-
-            if verify {
-                // Send generic read to read data at the set addr
-                port_guard.write_all(&ReadAddressCommand::new(command.register()).to_bytes())
-                    .map_err(ImuError::from)?;
-
-                info!("Sent command {:?} to IMU", command.to_bytes().as_slice());
-                info!("Sent read command {:?} to IMU", ReadAddressCommand::new(command.register()).to_bytes().as_slice());
-
-                let mut buffer = [0u8; 1024];
-                let start_time = Instant::now();
-                while start_time.elapsed() < timeout {
-                    if let Ok(n) = port_guard.read(&mut buffer) {
-                        if n > 0 {
-                            if let Ok(response) = parser_guard.parse(&buffer[0..n]) {
-                                for frame in response {
-                                    match frame {
-                                        ReadFrame::GenericRead { data } => {
-                                            if data == command.to_bytes().as_slice() {
-                                                info!("Command {:?} sent and verified", command.to_bytes().as_slice());
-                                                return Ok(());
-                                            }
-                                        }
-                                        _ => debug!("Received unexpected frame: {:?}", frame),
-                                    }
-                                }
-                            }
-                        }
-                    }   
+        impl<'a> Drop for ModeGuard<'a> {
+            fn drop(&mut self) {
+                if let Ok(mut guard) = self.mode.write() {
+                    *guard = ImuMode::Read; // Always set back to Read on exit
+                    debug!("Mode set back to Read.");
+                } else {
+                    error!("Failed to acquire mode lock to set back to Read!");
                 }
-                error!("Command {:?} sent but timed out before matching response received", command.to_bytes().as_slice());
-                return Err(ImuError::ReadError("No response from IMU".to_string()));
             }
         }
 
-        if let Ok(mut mode_guard) = self.mode.write() {
-            *mode_guard = ImuMode::Read;
+        let _mode_guard = ModeGuard { mode: &self.mode };
+
+        let mut parser_guard = self.frame_parser.lock().map_err(|e| {
+            ImuError::WriteError(format!("Failed to acquire lock on frame parser: {}", e))
+        })?;
+
+        // Clear parser buffer before writing/verifying
+        parser_guard.clear_buffer();
+        debug!("Cleared parser buffer.");
+
+        let mut port_guard = self.port.lock().map_err(|e| {
+            ImuError::WriteError(format!("Failed to acquire lock on port: {}", e))
+        })?;
+
+
+        let command_bytes = command.to_bytes();
+
+        // Before sending the command, unlock the IMU
+        port_guard.write_all(&UnlockCommand::new().to_bytes())
+            .map_err(|e| ImuError::WriteError(format!("Failed to write unlock command: {}", e)))?;
+        std::thread::sleep(Duration::from_millis(30));
+
+        // Send multiple commands for redundancy
+        debug!("Sending command {:?} to IMU", command_bytes.as_slice());
+        port_guard.write_all(&command_bytes)
+            .map_err(|e| ImuError::WriteError(format!("Failed to write command: {}", e)))?;
+        std::thread::sleep(Duration::from_millis(30));
+
+        port_guard.flush()?;
+
+        // Save the command
+        port_guard.write_all(&SaveCommand::new().to_bytes())
+            .map_err(|e| ImuError::WriteError(format!("Failed to write save command: {}", e)))?;
+        std::thread::sleep(Duration::from_millis(30));
+
+        port_guard.flush()?;
+        
+        debug!("Sent command {:?} to IMU", command_bytes.as_slice());
+
+        if verify {
+            std::thread::sleep(Duration::from_secs(5)); // Wait for the IMU to process the command
+            // let read_command_bytes = ReadAddressCommand::new(command.register()).to_bytes();
+            let read_command_bytes = ReadAddressCommand::new(command.register()).to_bytes();
+            // Send multiple read commands for redundancy
+            for _ in 0..3 {
+                port_guard.write_all(&read_command_bytes)
+                    .map_err(|e| ImuError::WriteError(format!("Failed to write read command for verification: {}", e)))?;
+                std::thread::sleep(Duration::from_millis(5));
+            }
+
+            info!("Sent read command {:?} to IMU for verification of register {:?}", read_command_bytes.as_slice(), command.register());
+
+            let start_time = Instant::now();
+            let mut buffer = [0u8; 1024]; // Buffer for verification read
+
+            while start_time.elapsed() < timeout {
+                match port_guard.read(&mut buffer) {
+                    Ok(n) => {
+                        if n > 0 {
+                             trace!("Verification read {} bytes: {:?}", n, &buffer[..n]);
+                            match parser_guard.parse(&buffer[0..n]) {
+                                 Ok(response) => {
+                                    for frame in response {
+                                        match frame {
+                                            ReadFrame::GenericRead { data } => {
+                                                debug!("Received generic read frame: {:?}", data);
+                                                debug!("Command bytes: {:?}", command_bytes);
+                                                // Expected data is the 2-byte value written, found at index 3 and 4 of the command bytes
+                                                let expected_data = &command_bytes[3..5];
+                                                // Check the first 2 bytes of the returned 8-byte data array
+                                                if data[0..2] == expected_data[0..2] {
+                                                    info!(
+                                                        "Command for register {:?} verified. Wrote {:?}, Read back {:?}",
+                                                        command.register(),
+                                                        expected_data,
+                                                        &data[0..2]
+                                                    );
+                                                    parser_guard.clear_buffer();
+                                                    return Ok(());
+                                                } else {
+                                                    warn!(
+                                                        "Command verification MISMATCH for register {:?}. Wrote {:?}, Read back {:?}. Full read data: {:?}",
+                                                        command.register(),
+                                                        expected_data,
+                                                        &data[0..2],
+                                                        data
+                                                    );
+                                                    parser_guard.clear_buffer();
+                                                }
+                                            }
+                                            _ => trace!("Received unexpected frame during verification: {:?}", frame),
+                                        }
+                                    }
+                                 }
+                                Err(e) => {
+                                    error!("Failed to parse verification response: {}", e);
+                                    parser_guard.clear_buffer();
+                                }
+                             }
+                        }
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                        debug!("Verification read timed out, continuing wait...");
+                    }
+                    Err(e) => {
+                         error!("Error reading verification response: {}", e);
+                         parser_guard.clear_buffer();
+                         return Err(ImuError::ReadError(format!("Verification read error: {}", e)));
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+
+            error!("Command {:?} sent but verification timed out after {:?} for register {:?}", command_bytes.as_slice(), timeout, command.register());
+            parser_guard.clear_buffer(); // Clear buffer on timeout
+            return Err(ImuError::ReadError(format!("Verification timed out for register {:?}", command.register())));
+
+        } else {
+            debug!("Command {:?} sent without verification.", command_bytes.as_slice());
+            parser_guard.clear_buffer();
+            Ok(())
         }
-        Ok(())
     }
 
     pub fn set_frequency(&self, frequency: ImuFrequency, timeout: Duration) -> Result<(), ImuError> {
-        if let Ok(mut mode_guard) = self.mode.write() {
-            *mode_guard = ImuMode::Write;
-        }
         self.write_command(&UnlockCommand::new(), false, timeout)?;
         self.write_command(&SetFrequencyCommand::new(frequency), true, timeout)?;
         self.write_command(&SaveCommand::new(), false, timeout)?;
@@ -273,11 +359,9 @@ impl HiwonderReader {
     }
 
     pub fn set_baud_rate(&self, baud_rate: u32, timeout: Duration) -> Result<(), ImuError> {
-        if let Ok(mut mode_guard) = self.mode.write() {
-            *mode_guard = ImuMode::Write;
-        }
+        let baud_enum = BaudRate::try_from(baud_rate).map_err(|e| ImuError::ConfigurationError(format!("{}",e)))?;
         self.write_command(&UnlockCommand::new(), false, timeout)?;
-        self.write_command(&SetBaudRateCommand::new(BaudRate::try_from(baud_rate).unwrap()), true, timeout)?;
+        self.write_command(&SetBaudRateCommand::new(baud_enum), true, timeout)?;
         self.write_command(&SaveCommand::new(), false, timeout)?;
         Ok(())
     }

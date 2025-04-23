@@ -208,8 +208,9 @@ pub struct EnableOutputCommand {
     pub command: Command,
 }
 
+// Note that the Hiwonder imu will reject an empty flag set.
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Copy, Clone)]
     pub struct Output: u16 {
         const TIME = 1 << 0; // 0x50
         const ACC = 1 << 1; // 0x51

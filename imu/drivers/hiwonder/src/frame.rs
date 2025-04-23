@@ -2,10 +2,10 @@
 
 use imu_traits::ImuError;
 use std::convert::TryInto;
-use tracing::warn;
+use tracing::{debug, warn};
 
-const START_BYTE: u8 = 0x55;
-const PACKET_SIZE: usize = 11; // data packets at 11 bytes
+pub const START_BYTE: u8 = 0x55;
+pub const PACKET_SIZE: usize = 11; // data packets at 11 bytes
 
 pub struct RawFrame {
     pub frame_type: FrameType,
@@ -74,7 +74,7 @@ pub enum ReadFrame {
         hour: u8,
         minute: u8,
         second: u8,
-        ms: u16,
+        ms: i16,
     },
     Acceleration {
         x: f32,
@@ -101,14 +101,14 @@ pub enum ReadFrame {
         temp: f32,
     },
     PortStatus {
-        d0: u16,
-        d1: u16,
-        d2: u16,
-        d3: u16,
+        d0: i16,
+        d1: i16,
+        d2: i16,
+        d3: i16,
     },
     BaroAltitude {
-        pressure: u32,
-        height_cm: u32,
+        pressure: f32,
+        height_cm: f32,
     },
     LatLon {
         lon: f64,
@@ -126,7 +126,7 @@ pub enum ReadFrame {
         z: f32,
     },
     GpsAccuracy {
-        sv: u16,
+        sv: i16,
         pdop: f32,
         hdop: f32,
         vdop: f32,
@@ -165,7 +165,7 @@ impl ReadFrame {
                 let hour = frame.data[3];
                 let minute = frame.data[4];
                 let second = frame.data[5];
-                let ms = u16::from(frame.data[7]) << 8 | u16::from(frame.data[6]);
+                let ms = i16::from(frame.data[7]) << 8 | i16::from(frame.data[6]);
                 Ok(ReadFrame::Time {
                     year,
                     month,
@@ -226,24 +226,24 @@ impl ReadFrame {
                 })
             }
             FrameType::PortStatus => {
-                let d0 = u16::from(frame.data[1]) << 8 | u16::from(frame.data[0]);
-                let d1 = u16::from(frame.data[3]) << 8 | u16::from(frame.data[2]);
-                let d2 = u16::from(frame.data[5]) << 8 | u16::from(frame.data[4]);
-                let d3 = u16::from(frame.data[7]) << 8 | u16::from(frame.data[6]);
+                let d0 = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
+                let d1 = i16::from(frame.data[3]) << 8 | i16::from(frame.data[2]);
+                let d2 = i16::from(frame.data[5]) << 8 | i16::from(frame.data[4]);
+                let d3 = i16::from(frame.data[7]) << 8 | i16::from(frame.data[6]);
                 Ok(ReadFrame::PortStatus { d0, d1, d2, d3 })
             }
             FrameType::BaroAltitude => {
-                let pressure = u32::from(frame.data[3]) << 24
-                    | u32::from(frame.data[2]) << 16
-                    | u32::from(frame.data[1]) << 8
-                    | u32::from(frame.data[0]);
-                let height_cm = u32::from(frame.data[7]) << 24
-                    | u32::from(frame.data[6]) << 16
-                    | u32::from(frame.data[5]) << 8
-                    | u32::from(frame.data[4]);
+                let pressure = i32::from(frame.data[3]) << 24
+                    | i32::from(frame.data[2]) << 16
+                    | i32::from(frame.data[1]) << 8
+                    | i32::from(frame.data[0]);
+                let height_cm = i32::from(frame.data[7]) << 24
+                    | i32::from(frame.data[6]) << 16
+                    | i32::from(frame.data[5]) << 8
+                    | i32::from(frame.data[4]);
                 Ok(ReadFrame::BaroAltitude {
-                    pressure,
-                    height_cm,
+                    pressure: pressure as f32,
+                    height_cm: height_cm as f32,
                 })
             }
             FrameType::LatLon => {
@@ -286,9 +286,9 @@ impl ReadFrame {
                 })
             }
             FrameType::GpsAccuracy => {
-                let num_satellites = u16::from(frame.data[1]) << 8 | u16::from(frame.data[0]);
-                let pdop = u16::from(frame.data[3]) << 8 | u16::from(frame.data[2]);
-                let hdop = u16::from(frame.data[5]) << 8 | u16::from(frame.data[4]);
+                let num_satellites = i16::from(frame.data[1]) << 8 | i16::from(frame.data[0]);
+                let pdop = i16::from(frame.data[3]) << 8 | i16::from(frame.data[2]);
+                let hdop = i16::from(frame.data[5]) << 8 | i16::from(frame.data[4]);
                 let vdop = u16::from(frame.data[7]) << 8 | u16::from(frame.data[6]);
                 Ok(ReadFrame::GpsAccuracy {
                     sv: num_satellites,
@@ -298,6 +298,7 @@ impl ReadFrame {
                 })
             }
             FrameType::GenericRead => {
+                debug!("Received generic read frame: {:?}", frame.data);
                 let data = [
                     frame.data[0],
                     frame.data[1],
@@ -315,7 +316,7 @@ impl ReadFrame {
 }
 
 pub struct FrameParser {
-    buffer: Vec<u8>,
+    pub buffer: Vec<u8>,
 }
 
 impl FrameParser {
@@ -363,6 +364,8 @@ impl FrameParser {
                         ImuError::ReadError("Failed to convert slice to array".to_string())
                     })?;
 
+                    debug!("Received frame type: {:?}", type_byte);
+
                     match FrameType::try_from(type_byte) {
                         Ok(frame_type) => {
                             let raw_frame = RawFrame {
@@ -370,7 +373,6 @@ impl FrameParser {
                                 data: data_bytes,
                             };
                             match ReadFrame::deserialize(raw_frame) {
-                                // Assumes deserialize is implemented
                                 Ok(parsed_frame) => {
                                     frames.push(parsed_frame);
                                     consumed = packet_start_index + PACKET_SIZE;
