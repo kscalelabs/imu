@@ -1,9 +1,10 @@
 use bitflags::bitflags;
 use hiwonder_macros::{BytableRegistrableCommand, DefaultableCommand, Registrable};
 use imu_traits::{ImuError, ImuFrequency};
+use strum_macros::EnumIter;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum Register {
     Save = 0x00,
     CalSw = 0x01,        // Calibration mode

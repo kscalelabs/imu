@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, trace, warn};
+use strum::IntoEnumIterator;
 
 pub trait FrequencyToByte {
     fn to_byte(&self) -> u8;
@@ -645,6 +646,105 @@ impl HiwonderReader {
     pub fn set_output_mode(&self, mode: Output, timeout: Duration) -> Result<(), ImuError> {
         self.write_command(&EnableOutputCommand::new(mode), true, timeout)?;
         Ok(())
+    }
+
+    pub fn read_register(&self, register: Register, timeout: Duration) -> Result<[u8; 8], ImuError> {
+        let mut port_guard = self.port.lock().map_err(|e| {
+            ImuError::ReadError(format!("Failed to acquire lock on port: {}", e))
+        })?;
+
+        let read_cmd = ReadAddressCommand::new(register).to_bytes();
+        port_guard.write_all(&read_cmd).map_err(|e| {
+            ImuError::WriteError(format!("Failed to write read command: {}", e))
+        })?;
+
+        let mut parser_guard = self.frame_parser.lock().map_err(|e| {
+            ImuError::ReadError(format!("Failed to acquire lock on frame parser: {}", e))
+        })?;
+
+        std::thread::sleep(Duration::from_millis(5));
+
+        let mut buffer = [0u8; 1024];
+        let read_start_time = Instant::now();
+
+        while read_start_time.elapsed() < timeout {
+            match port_guard.read(&mut buffer) {
+                Ok(n) => {
+                    if n > 0 {
+                        trace!("Read {} bytes: {:?}", n, &buffer[..n]);
+                        match parser_guard.parse(&buffer[0..n]) {
+                            Ok(response) => {
+                            for frame in response {
+                                match frame {
+                                    ReadFrame::GenericRead { data } => {
+                                        return Ok(data);
+                                    }
+                                    _ => {
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            return Err(ImuError::ReadError(format!("Failed to parse response: {}", e)));
+                            }
+                        }
+                    }
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    debug!("Read timed out, continuing wait...");
+                }
+                Err(e) => {
+                    return Err(ImuError::ReadError(format!("Failed to read from port: {}", e)));
+                }
+            }
+        }
+        
+        Err(ImuError::ReadError("Timeout reading register".to_string()))
+
+    }
+
+    pub fn read_all_registers(&self, timeout_per_register: Duration) -> Result<Vec<(Register, [u8; 8])>, ImuError> {
+        let all_registers = Register::iter();
+        let register_count = Register::iter().count();
+
+        let mut results = Vec::with_capacity(register_count);
+        let mut errors = Vec::new();
+
+        for register in all_registers {
+            match register {
+                Register::ReadAddr | Register::Key | Register::Save => {
+                    trace!("Skipping ReadAddr, Key, and Save registers: {:?}", register);
+                    continue;
+                }
+                _ => {
+                    trace!("Reading register: {:?}", register);
+                }
+            }
+
+            match self.read_register(register, timeout_per_register) {
+                Ok(data) => {
+                    results.push((register, data));
+                }
+                Err(e) => {
+                    warn!("Failed to read register {:?}: {}", register, e);
+                    errors.push((register, e));
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            info!("Successfully read {} registers.", results.len());
+            Ok(results)
+        } else {
+            error!("Failed to read {} registers out of attempted {}.", errors.len(), register_count - errors.len()); // Adjust count based on skipped
+            // Depending on requirements, you might want to return the partial results along with the errors.
+            // For now, returning a generic error indicating partial failure.
+            Err(ImuError::ReadError(format!(
+                "Failed to read {} registers. First error on {:?}: {}",
+                errors.len(), errors[0].0, errors[0].1
+            )))
+        }
     }
 }
 
