@@ -1,8 +1,11 @@
+// Example usage:
+// RUST_LOG=info cargo run --bin read_hiwonder -- --device /dev/tty.usbserial-110 --baud_rate 230400
 use clap::Parser;
-use hiwonder::{HiwonderReader, ImuReader, Quaternion, Vector3};
+use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Quaternion, Vector3};
 use std::io;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+use tracing_subscriber::EnvFilter;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -94,11 +97,19 @@ impl Stats {
 }
 
 fn main() -> io::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::from_default_env()
+                .add_directive("polling=off".parse().unwrap())
+                .add_directive("async_io=off".parse().unwrap()),
+        )
+        .init();
+
     let args = Args::parse();
     let (port, baud_rate) = (args.device, args.baud_rate);
 
     println!("Attempting to connect to {} at {} baud...", port, baud_rate);
-    let reader = match HiwonderReader::new(&port, baud_rate) {
+    let reader = match HiwonderReader::new(&port, baud_rate, Duration::from_secs(1), false) {
         Ok(r) => {
             println!("Successfully connected to {}", port);
             r
@@ -110,6 +121,12 @@ fn main() -> io::Result<()> {
             ))
         }
     };
+
+    // Set the bandwidth to 42Hz
+    reader.set_bandwidth(98, Duration::from_secs(1))
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to set bandwidth: {}", e)))?;
+    reader.set_frequency(ImuFrequency::Hz100, Duration::from_secs(1))
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to set frequency: {}", e)))?;
 
     let mut stats = Stats::new();
     let mut prev_frame: Option<SensorFrame> = None;

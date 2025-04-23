@@ -55,22 +55,33 @@ pub enum ImuCommand {
 }
 
 impl HiwonderReader {
-    pub fn new(interface: &str, desired_baud_rate: u32, timeout: Duration) -> Result<Self, ImuError> {
+    pub fn new(interface: &str, desired_baud_rate: u32, timeout: Duration, auto_detect_baud_rate: bool) -> Result<Self, ImuError> {
         let data = Arc::new(RwLock::new(ImuData::default()));
         let running = Arc::new(RwLock::new(true));
         let frame_parser_arc = Arc::new(Mutex::new(FrameParser::new(Some(512))));
 
-        let (final_port, _final_baud_rate) = Self::detect_and_set_baud_rate(interface, desired_baud_rate, Duration::from_secs(10))
-            .map_err(|e| ImuError::ConfigurationError(format!("Baud rate detection/setting failed: {}", e)))?;
+        let final_port: Box<dyn serialport::SerialPort>;
+        let _final_baud_rate: u32;
 
-        let port_arc = Arc::new(Mutex::new(final_port)); // Wrap the final port
+        if auto_detect_baud_rate {
+            (final_port, _final_baud_rate) = Self::detect_and_set_baud_rate(interface, desired_baud_rate, Duration::from_secs(10))
+                .map_err(|e| ImuError::ConfigurationError(format!("Baud rate detection/setting failed: {}", e)))?;
+        } else {
+            final_port = serialport::new(interface, desired_baud_rate)
+                .timeout(timeout)
+                .open()
+                .map_err(|e| ImuError::ConfigurationError(format!("Failed to open port directly at {}: {}", desired_baud_rate, e)))?;
+            _final_baud_rate = desired_baud_rate;
+        }
+
+        let port_arc = Arc::new(Mutex::new(final_port));
 
         let reader = HiwonderReader {
             data: Arc::clone(&data),
-            mode: Arc::new(RwLock::new(ImuMode::Read)), // Start in Read mode
+            mode: Arc::new(RwLock::new(ImuMode::Read)),
             port: Arc::clone(&port_arc),
             running: Arc::clone(&running),
-            frame_parser: frame_parser_arc, // Use the parser created earlier
+            frame_parser: frame_parser_arc,
             timeout,
         };
 
@@ -509,8 +520,14 @@ impl HiwonderReader {
     }
 
     pub fn set_baud_rate(&self, baud_rate: u32, timeout: Duration) -> Result<(), ImuError> {
-        let baud_enum = BaudRate::try_from(baud_rate).map_err(|e| ImuError::ConfigurationError(format!("{}",e)))?;
+        let baud_enum = BaudRate::try_from(baud_rate)?;
         self.write_command(&SetBaudRateCommand::new(baud_enum), true, timeout)?;
+        Ok(())
+    }
+
+    pub fn set_bandwidth(&self, bandwidth: u32, timeout: Duration) -> Result<(), ImuError> {
+        let bandwidth_enum = Bandwidth::try_from(bandwidth)?;
+        self.write_command(&SetBandwidthCommand::new(bandwidth_enum), true, timeout)?;
         Ok(())
     }
 }

@@ -406,3 +406,63 @@ impl Default for SetBaudRateCommand {
         Self::new(BaudRate::Baud230400)
     }
 }
+
+/// Represents the configurable bandwidth settings of the IMU.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Bandwidth {
+    Hz256 = 0x00,
+    Hz188 = 0x01,
+    Hz98  = 0x02,
+    Hz42  = 0x03,
+    Hz20  = 0x04,
+    Hz10  = 0x05,
+    Hz5   = 0x06,
+}
+
+impl Bytable for Bandwidth {
+    fn to_bytes(&self) -> Vec<u8> {
+        vec![*self as u8, 0x00]
+    }
+}
+
+impl TryFrom<u32> for Bandwidth {
+    type Error = ImuError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Ok(match value {
+            256 => Bandwidth::Hz256,
+            188 => Bandwidth::Hz188,
+            98 => Bandwidth::Hz98,
+            42 => Bandwidth::Hz42,
+            20 => Bandwidth::Hz20,
+            10 => Bandwidth::Hz10,
+            5 => Bandwidth::Hz5,
+            _ => {
+                return Err(ImuError::ConfigurationError(format!(
+                    "Invalid bandwidth: {}",
+                    value
+                )))
+            }
+        })
+    }
+}
+
+#[derive(BytableRegistrableCommand)]
+pub struct SetBandwidthCommand {
+    pub command: Command,
+}
+
+impl SetBandwidthCommand {
+    pub fn new(bandwidth: Bandwidth) -> Self {
+        let data = bandwidth.to_bytes();
+        let command = Command::new(Register::Bandwidth, [data[0], data[1]]);
+        Self { command }
+    }
+}
+
+impl Default for SetBandwidthCommand {
+    fn default() -> Self {
+        Self::new(Bandwidth::Hz42)
+    }
+}
