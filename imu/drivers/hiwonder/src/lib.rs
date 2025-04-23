@@ -127,7 +127,14 @@ impl HiwonderReader {
         desired_baud_rate: u32,
         timeout: Duration,
     ) -> Result<(Box<dyn serialport::SerialPort>, u32), ImuError> {
-        let baud_rates_to_try = [
+        let mut baud_rates_to_try = Vec::new();
+        baud_rates_to_try.push(
+            BaudRate::try_from(desired_baud_rate).map_err(|e| {
+                ImuError::ConfigurationError(format!("Desired baud rate {} invalid: {}", desired_baud_rate, e))
+            })?,
+        );
+
+        let all_baud_rates = [
             BaudRate::Baud4800,
             BaudRate::Baud9600,
             BaudRate::Baud19200,
@@ -139,13 +146,17 @@ impl HiwonderReader {
             BaudRate::Baud921600,
         ];
 
+        for baud_rate in all_baud_rates {
+            baud_rates_to_try.push(baud_rate);
+        }
+
         let mut detected_port: Option<Box<dyn serialport::SerialPort>> = None;
         let mut current_baud_rate: Option<u32> = None;
 
         let overall_start_time = Instant::now();
 
         let time_per_baud = timeout
-            .checked_div(baud_rates_to_try.len() as u32 + 2)
+            .checked_div(baud_rates_to_try.len() as u32 + 10)
             .unwrap_or(Duration::from_millis(200));
 
         info!("Attempting to detect IMU baud rate...");
@@ -168,8 +179,7 @@ impl HiwonderReader {
             {
                 Ok(mut port) => {
                     debug!("Port opened at {}", baud_rate);
-                    let mut temp_parser = FrameParser::new(Some(128)); // Smaller buffer for quick check
-                    thread::sleep(Duration::from_millis(50)); // Allow port init
+                    let mut temp_parser = FrameParser::new(Some(512));
 
                     let unlock_cmd = UnlockCommand::new().to_bytes();
                     let read_cmd = ReadAddressCommand::new(Register::GpsBaud).to_bytes();
@@ -178,12 +188,12 @@ impl HiwonderReader {
                         warn!("Failed to write unlock cmd at {}", baud_rate);
                         continue;
                     }
-                    thread::sleep(Duration::from_millis(30));
+                    thread::sleep(Duration::from_millis(10));
                     if port.write_all(&read_cmd).is_err() {
                         warn!("Failed to write read cmd at {}", baud_rate);
                         continue;
                     }
-                    debug!("Sent Unlock and Read WhoAmI command at {}", baud_rate);
+                    debug!("Sent Unlock and Read command at {}", baud_rate);
 
                     // Attempt to read response
                     let mut buffer = [0u8; 256];

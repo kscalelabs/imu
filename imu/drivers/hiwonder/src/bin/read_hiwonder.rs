@@ -109,7 +109,7 @@ fn main() -> io::Result<()> {
     let (port, baud_rate) = (args.device, args.baud_rate);
 
     println!("Attempting to connect to {} at {} baud...", port, baud_rate);
-    let reader = match HiwonderReader::new(&port, baud_rate, Duration::from_secs(1), false) {
+    let reader = match HiwonderReader::new(&port, baud_rate, Duration::from_secs(1), true) {
         Ok(r) => {
             println!("Successfully connected to {}", port);
             r
