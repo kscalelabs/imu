@@ -43,7 +43,6 @@ pub struct HiwonderReader {
     port: Arc<Mutex<Box<dyn serialport::SerialPort>>>,
     running: Arc<RwLock<bool>>,
     frame_parser: Arc<Mutex<FrameParser>>,
-    timeout: Duration,
 }
 
 #[derive(Debug)]
@@ -55,7 +54,12 @@ pub enum ImuCommand {
 }
 
 impl HiwonderReader {
-    pub fn new(interface: &str, desired_baud_rate: u32, timeout: Duration, auto_detect_baud_rate: bool) -> Result<Self, ImuError> {
+    pub fn new(
+        interface: &str,
+        desired_baud_rate: u32,
+        timeout: Duration,
+        auto_detect_baud_rate: bool,
+    ) -> Result<Self, ImuError> {
         let data = Arc::new(RwLock::new(ImuData::default()));
         let running = Arc::new(RwLock::new(true));
         let frame_parser_arc = Arc::new(Mutex::new(FrameParser::new(Some(512))));
@@ -64,13 +68,24 @@ impl HiwonderReader {
         let _final_baud_rate: u32;
 
         if auto_detect_baud_rate {
-            (final_port, _final_baud_rate) = Self::detect_and_set_baud_rate(interface, desired_baud_rate, Duration::from_secs(10))
-                .map_err(|e| ImuError::ConfigurationError(format!("Baud rate detection/setting failed: {}", e)))?;
+            (final_port, _final_baud_rate) = Self::detect_and_set_baud_rate(
+                interface,
+                desired_baud_rate,
+                Duration::from_secs(10),
+            )
+            .map_err(|e| {
+                ImuError::ConfigurationError(format!("Baud rate detection/setting failed: {}", e))
+            })?;
         } else {
             final_port = serialport::new(interface, desired_baud_rate)
                 .timeout(timeout)
                 .open()
-                .map_err(|e| ImuError::ConfigurationError(format!("Failed to open port directly at {}: {}", desired_baud_rate, e)))?;
+                .map_err(|e| {
+                    ImuError::ConfigurationError(format!(
+                        "Failed to open port directly at {}: {}",
+                        desired_baud_rate, e
+                    ))
+                })?;
             _final_baud_rate = desired_baud_rate;
         }
 
@@ -82,7 +97,6 @@ impl HiwonderReader {
             port: Arc::clone(&port_arc),
             running: Arc::clone(&running),
             frame_parser: frame_parser_arc,
-            timeout,
         };
 
         if let Ok(mut guard) = reader.frame_parser.lock() {
@@ -91,8 +105,16 @@ impl HiwonderReader {
 
         let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
         let setup_timeout = Duration::from_secs(1);
-        reader.write_command(&EnableOutputCommand::new(enabled_outputs), true, setup_timeout)?;
-        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), true, setup_timeout)?;
+        reader.write_command(
+            &EnableOutputCommand::new(enabled_outputs),
+            true,
+            setup_timeout,
+        )?;
+        reader.write_command(
+            &SetFrequencyCommand::new(ImuFrequency::Hz200),
+            true,
+            setup_timeout,
+        )?;
         reader.start_reading_thread()?;
 
         Ok(reader)
@@ -105,33 +127,41 @@ impl HiwonderReader {
         desired_baud_rate: u32,
         timeout: Duration,
     ) -> Result<(Box<dyn serialport::SerialPort>, u32), ImuError> {
-        let baud_rates_to_try = [BaudRate::Baud4800,
-                                                BaudRate::Baud9600,
-                                                BaudRate::Baud19200,
-                                                BaudRate::Baud38400,
-                                                BaudRate::Baud57600,
-                                                BaudRate::Baud115200,
-                                                BaudRate::Baud230400,
-                                                BaudRate::Baud460800,
-                                                BaudRate::Baud921600];
+        let baud_rates_to_try = [
+            BaudRate::Baud4800,
+            BaudRate::Baud9600,
+            BaudRate::Baud19200,
+            BaudRate::Baud38400,
+            BaudRate::Baud57600,
+            BaudRate::Baud115200,
+            BaudRate::Baud230400,
+            BaudRate::Baud460800,
+            BaudRate::Baud921600,
+        ];
 
         let mut detected_port: Option<Box<dyn serialport::SerialPort>> = None;
         let mut current_baud_rate: Option<u32> = None;
 
         let overall_start_time = Instant::now();
 
-        let time_per_baud = timeout.checked_div(baud_rates_to_try.len() as u32 + 2)
-                                       .unwrap_or(Duration::from_millis(200));
+        let time_per_baud = timeout
+            .checked_div(baud_rates_to_try.len() as u32 + 2)
+            .unwrap_or(Duration::from_millis(200));
 
         info!("Attempting to detect IMU baud rate...");
 
         for test_baud in baud_rates_to_try.iter() {
             if overall_start_time.elapsed() > timeout {
-                return Err(ImuError::ConfigurationError(format!("Baud rate detection timed out after {:?}", timeout)));
+                return Err(ImuError::ConfigurationError(format!(
+                    "Baud rate detection timed out after {:?}",
+                    timeout
+                )));
             }
             debug!("Trying baud rate: {:?}", test_baud);
 
-            let baud_rate = test_baud.clone().try_into().map_err(|e| ImuError::ConfigurationError(format!("Failed to convert baud rate: {}", e)))?;
+            let baud_rate = test_baud.clone().try_into().map_err(|e| {
+                ImuError::ConfigurationError(format!("Failed to convert baud rate: {}", e))
+            })?;
             match serialport::new(interface, baud_rate)
                 .timeout(time_per_baud)
                 .open()
@@ -165,7 +195,10 @@ impl HiwonderReader {
                                 trace!("Read {} bytes at {}: {:?}", n, baud_rate, &buffer[..n]);
                                 match temp_parser.parse(&buffer[..n]) {
                                     Ok(frames) => {
-                                        if frames.iter().any(|f| matches!(f, ReadFrame::GenericRead { .. })) {
+                                        if frames
+                                            .iter()
+                                            .any(|f| matches!(f, ReadFrame::GenericRead { .. }))
+                                        {
                                             info!("Detected working baud rate: {}", baud_rate);
                                             found_response = true;
                                             break;
@@ -202,53 +235,88 @@ impl HiwonderReader {
 
         let mut final_port = match detected_port {
             Some(port) => port,
-            None => return Err(ImuError::ConfigurationError("Could not find working baud rate for IMU.".to_string())),
+            None => {
+                return Err(ImuError::ConfigurationError(
+                    "Could not find working baud rate for IMU.".to_string(),
+                ))
+            }
         };
 
         let current_baud = match current_baud_rate {
             Some(baud) => baud,
-            None => return Err(ImuError::ConfigurationError("Failed to detect current IMU baud rate.".to_string())),
+            None => {
+                return Err(ImuError::ConfigurationError(
+                    "Failed to detect current IMU baud rate.".to_string(),
+                ))
+            }
         };
 
         if current_baud != desired_baud_rate {
-            info!("Current IMU baud rate is {}, changing to {}.", current_baud, desired_baud_rate);
+            info!(
+                "Current IMU baud rate is {}, changing to {}.",
+                current_baud, desired_baud_rate
+            );
 
-            let desired_baud_enum = BaudRate::try_from(desired_baud_rate)
-                .map_err(|e| ImuError::ConfigurationError(format!("Desired baud rate {} invalid: {}", desired_baud_rate, e)))?;
+            let desired_baud_enum = BaudRate::try_from(desired_baud_rate).map_err(|e| {
+                ImuError::ConfigurationError(format!(
+                    "Desired baud rate {} invalid: {}",
+                    desired_baud_rate, e
+                ))
+            })?;
 
             let set_baud_cmd = SetBaudRateCommand::new(desired_baud_enum);
             let save_cmd = SaveCommand::new();
             let unlock_cmd = UnlockCommand::new();
 
             let command_timeout = Duration::from_secs(1);
-            final_port.set_timeout(command_timeout)
-                .map_err(|e| ImuError::ConfigurationError(format!("Failed to set write timeout: {}", e)))?;
+            final_port.set_timeout(command_timeout).map_err(|e| {
+                ImuError::ConfigurationError(format!("Failed to set write timeout: {}", e))
+            })?;
 
-            final_port.write_all(&unlock_cmd.to_bytes())
-                .map_err(|e| ImuError::WriteError(format!("Failed to write unlock before set baud: {}", e)))?;
+            final_port.write_all(&unlock_cmd.to_bytes()).map_err(|e| {
+                ImuError::WriteError(format!("Failed to write unlock before set baud: {}", e))
+            })?;
             thread::sleep(Duration::from_millis(30));
 
-            final_port.write_all(&set_baud_cmd.to_bytes())
-                .map_err(|e| ImuError::WriteError(format!("Failed to write set baud rate command: {}", e)))?;
+            final_port
+                .write_all(&set_baud_cmd.to_bytes())
+                .map_err(|e| {
+                    ImuError::WriteError(format!("Failed to write set baud rate command: {}", e))
+                })?;
 
-            final_port.write_all(&save_cmd.to_bytes())
-                .map_err(|e| ImuError::WriteError(format!("Failed to write save command after set baud: {}", e)))?;
+            final_port.write_all(&save_cmd.to_bytes()).map_err(|e| {
+                ImuError::WriteError(format!(
+                    "Failed to write save command after set baud: {}",
+                    e
+                ))
+            })?;
 
-            info!("IMU baud rate change command sent. Re-opening port at {}.", desired_baud_rate);
-            drop(final_port); 
+            info!(
+                "IMU baud rate change command sent. Re-opening port at {}.",
+                desired_baud_rate
+            );
+            drop(final_port);
             thread::sleep(Duration::from_millis(200));
 
             final_port = serialport::new(interface, desired_baud_rate)
                 .timeout(timeout)
                 .open()
-                .map_err(|e| ImuError::ConfigurationError(format!("Failed to re-open port at new baud rate {}: {}", desired_baud_rate, e)))?;
+                .map_err(|e| {
+                    ImuError::ConfigurationError(format!(
+                        "Failed to re-open port at new baud rate {}: {}",
+                        desired_baud_rate, e
+                    ))
+                })?;
 
-            info!("Port re-opened successfully at desired baud rate {}.", desired_baud_rate);
-
+            info!(
+                "Port re-opened successfully at desired baud rate {}.",
+                desired_baud_rate
+            );
         } else {
             info!("IMU already at desired baud rate {}.", desired_baud_rate);
-            final_port.set_timeout(timeout)
-                .map_err(|e| ImuError::ConfigurationError(format!("Failed to set final timeout: {}", e)))?;
+            final_port.set_timeout(timeout).map_err(|e| {
+                ImuError::ConfigurationError(format!("Failed to set final timeout: {}", e))
+            })?;
         }
 
         Ok((final_port, desired_baud_rate))
@@ -260,15 +328,12 @@ impl HiwonderReader {
     ) -> Result<Vec<ReadFrame>, ImuError> {
         let mut buffer = [0u8; 1024];
 
-        let mut port_guard = port_arc.lock().map_err(|e| {
-            ImuError::ReadError(format!("Failed to acquire lock on port: {}", e))
-        })?;
+        let mut port_guard = port_arc
+            .lock()
+            .map_err(|e| ImuError::ReadError(format!("Failed to acquire lock on port: {}", e)))?;
 
         let mut parser_guard = parser_arc.lock().map_err(|e| {
-            ImuError::ReadError(format!(
-                "Failed to acquire lock on frame parser: {}",
-                e
-            ))
+            ImuError::ReadError(format!("Failed to acquire lock on frame parser: {}", e))
         })?;
 
         match port_guard.read(&mut buffer) {
@@ -288,7 +353,7 @@ impl HiwonderReader {
         }
     }
 
-    fn set_data(imu_data: &mut ImuData, frame: &ReadFrame){
+    fn set_data(imu_data: &mut ImuData, frame: &ReadFrame) {
         match *frame {
             ReadFrame::Acceleration { x, y, z, temp: _ } => {
                 imu_data.accelerometer = Some(Vector3 { x, y, z });
@@ -323,9 +388,7 @@ impl HiwonderReader {
         }
     }
 
-    fn start_reading_thread(
-        &self,
-    ) -> Result<(), ImuError> {
+    fn start_reading_thread(&self) -> Result<(), ImuError> {
         let data = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);
         let port = Arc::clone(&self.port);
@@ -333,7 +396,7 @@ impl HiwonderReader {
         let mode = Arc::clone(&self.mode);
 
         thread::spawn(move || {
-            while let Ok(guard) = running.read(){
+            while let Ok(guard) = running.read() {
                 if !*guard {
                     break;
                 }
@@ -356,7 +419,7 @@ impl HiwonderReader {
                             }
                             Err(e) => error!("Error reading/parsing frames in thread: {}", e),
                         }
-                    }else{
+                    } else {
                         debug!("IMU is in write mode");
                     }
 
@@ -373,13 +436,23 @@ impl HiwonderReader {
             *running_guard = false;
             Ok(())
         } else {
-            Err(ImuError::ReadError("Failed to acquire lock for stop".to_string()))
+            Err(ImuError::ReadError(
+                "Failed to acquire lock for stop".to_string(),
+            ))
         }
     }
 
-    pub fn write_command(&self, command: &dyn BytableRegistrable, verify: bool, timeout: Duration) -> Result<(), ImuError> {
+    pub fn write_command(
+        &self,
+        command: &dyn BytableRegistrable,
+        verify: bool,
+        timeout: Duration,
+    ) -> Result<(), ImuError> {
         {
-            let mut mode_guard = self.mode.write().map_err(|_| ImuError::WriteError("Mode lock poisoned".to_string()))?;
+            let mut mode_guard = self
+                .mode
+                .write()
+                .map_err(|_| ImuError::WriteError("Mode lock poisoned".to_string()))?;
             *mode_guard = ImuMode::Write;
             debug!("Mode set to Write for register {:?}.", command.register());
         }
@@ -409,26 +482,28 @@ impl HiwonderReader {
         parser_guard.clear_buffer();
         debug!("Cleared parser buffer.");
 
-        let mut port_guard = self.port.lock().map_err(|e| {
-            ImuError::WriteError(format!("Failed to acquire lock on port: {}", e))
-        })?;
-
+        let mut port_guard = self
+            .port
+            .lock()
+            .map_err(|e| ImuError::WriteError(format!("Failed to acquire lock on port: {}", e)))?;
 
         let command_bytes = command.to_bytes();
 
         // Before sending the command, unlock the IMU
-        port_guard.write_all(&UnlockCommand::new().to_bytes())
+        port_guard
+            .write_all(&UnlockCommand::new().to_bytes())
             .map_err(|e| ImuError::WriteError(format!("Failed to write unlock command: {}", e)))?;
 
         std::thread::sleep(Duration::from_millis(30));
 
         debug!("Sending command {:?} to IMU", command_bytes.as_slice());
-        port_guard.write_all(&command_bytes)
+        port_guard
+            .write_all(&command_bytes)
             .map_err(|e| ImuError::WriteError(format!("Failed to write command: {}", e)))?;
 
-
         // Save the command
-        port_guard.write_all(&SaveCommand::new().to_bytes())
+        port_guard
+            .write_all(&SaveCommand::new().to_bytes())
             .map_err(|e| ImuError::WriteError(format!("Failed to write save command: {}", e)))?;
 
         debug!("Sent command {:?} to IMU", command_bytes.as_slice());
@@ -436,11 +511,19 @@ impl HiwonderReader {
         if verify {
             std::thread::sleep(Duration::from_millis(100));
             let read_command_bytes = ReadAddressCommand::new(command.register()).to_bytes();
-            port_guard.write_all(&read_command_bytes)
-                .map_err(|e| ImuError::WriteError(format!("Failed to write read command for verification: {}", e)))?;
+            port_guard.write_all(&read_command_bytes).map_err(|e| {
+                ImuError::WriteError(format!(
+                    "Failed to write read command for verification: {}",
+                    e
+                ))
+            })?;
             std::thread::sleep(Duration::from_millis(5));
 
-            info!("Sent read command {:?} to IMU for verification of register {:?}", read_command_bytes.as_slice(), command.register());
+            info!(
+                "Sent read command {:?} to IMU for verification of register {:?}",
+                read_command_bytes.as_slice(),
+                command.register()
+            );
 
             let start_time = Instant::now();
             let mut buffer = [0u8; 1024]; // Buffer for verification read
@@ -449,9 +532,9 @@ impl HiwonderReader {
                 match port_guard.read(&mut buffer) {
                     Ok(n) => {
                         if n > 0 {
-                             trace!("Verification read {} bytes: {:?}", n, &buffer[..n]);
+                            trace!("Verification read {} bytes: {:?}", n, &buffer[..n]);
                             match parser_guard.parse(&buffer[0..n]) {
-                                 Ok(response) => {
+                                Ok(response) => {
                                     for frame in response {
                                         match frame {
                                             ReadFrame::GenericRead { data } => {
@@ -483,38 +566,55 @@ impl HiwonderReader {
                                             _ => trace!("Received unexpected frame during verification: {:?}", frame),
                                         }
                                     }
-                                 }
+                                }
                                 Err(e) => {
                                     error!("Failed to parse verification response: {}", e);
                                     parser_guard.clear_buffer();
                                 }
-                             }
+                            }
                         }
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
                         debug!("Verification read timed out, continuing wait...");
                     }
                     Err(e) => {
-                         error!("Error reading verification response: {}", e);
-                         parser_guard.clear_buffer();
-                         return Err(ImuError::ReadError(format!("Verification read error: {}", e)));
+                        error!("Error reading verification response: {}", e);
+                        parser_guard.clear_buffer();
+                        return Err(ImuError::ReadError(format!(
+                            "Verification read error: {}",
+                            e
+                        )));
                     }
                 }
                 std::thread::sleep(Duration::from_millis(20));
             }
 
-            error!("Command {:?} sent but verification timed out after {:?} for register {:?}", command_bytes.as_slice(), timeout, command.register());
+            error!(
+                "Command {:?} sent but verification timed out after {:?} for register {:?}",
+                command_bytes.as_slice(),
+                timeout,
+                command.register()
+            );
             parser_guard.clear_buffer(); // Clear buffer on timeout
-            return Err(ImuError::ReadError(format!("Verification timed out for register {:?}", command.register())));
-
+            Err(ImuError::ReadError(format!(
+                "Verification timed out for register {:?}",
+                command.register()
+            )))
         } else {
-            debug!("Command {:?} sent without verification.", command_bytes.as_slice());
+            debug!(
+                "Command {:?} sent without verification.",
+                command_bytes.as_slice()
+            );
             parser_guard.clear_buffer();
             Ok(())
         }
     }
 
-    pub fn set_frequency(&self, frequency: ImuFrequency, timeout: Duration) -> Result<(), ImuError> {
+    pub fn set_frequency(
+        &self,
+        frequency: ImuFrequency,
+        timeout: Duration,
+    ) -> Result<(), ImuError> {
         self.write_command(&SetFrequencyCommand::new(frequency), true, timeout)?;
         Ok(())
     }
@@ -538,7 +638,8 @@ impl ImuReader for HiwonderReader {
     }
 
     fn get_data(&self) -> Result<ImuData, ImuError> {
-        self.data.read()
+        self.data
+            .read()
             .map(|data| *data)
             .map_err(|e| ImuError::ReadError(format!("Data lock poisoned: {}", e)))
     }

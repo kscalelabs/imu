@@ -387,10 +387,7 @@ impl FrameParser {
                             }
                         }
                         Err(e) => {
-                            warn!(
-                                "Unknown frame type byte error: {:?}, discarding packet.",
-                                e
-                            );
+                            warn!("Unknown frame type byte error: {:?}, discarding packet.", e);
                             consumed = packet_start_index + PACKET_SIZE;
                         }
                     }

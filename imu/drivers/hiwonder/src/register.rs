@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use bitflags::bitflags;
 use hiwonder_macros::{BytableRegistrableCommand, DefaultableCommand, Registrable};
 use imu_traits::{ImuError, ImuFrequency};
@@ -413,11 +411,11 @@ impl Default for SetBaudRateCommand {
 pub enum Bandwidth {
     Hz256 = 0x00,
     Hz188 = 0x01,
-    Hz98  = 0x02,
-    Hz42  = 0x03,
-    Hz20  = 0x04,
-    Hz10  = 0x05,
-    Hz5   = 0x06,
+    Hz98 = 0x02,
+    Hz42 = 0x03,
+    Hz20 = 0x04,
+    Hz10 = 0x05,
+    Hz5 = 0x06,
 }
 
 impl Bytable for Bandwidth {

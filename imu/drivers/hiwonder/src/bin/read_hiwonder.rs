@@ -123,10 +123,22 @@ fn main() -> io::Result<()> {
     };
 
     // Set the bandwidth to 42Hz
-    reader.set_bandwidth(98, Duration::from_secs(1))
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to set bandwidth: {}", e)))?;
-    reader.set_frequency(ImuFrequency::Hz100, Duration::from_secs(1))
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to set frequency: {}", e)))?;
+    reader
+        .set_bandwidth(98, Duration::from_secs(1))
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to set bandwidth: {}", e),
+            )
+        })?;
+    reader
+        .set_frequency(ImuFrequency::Hz100, Duration::from_secs(1))
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to set frequency: {}", e),
+            )
+        })?;
 
     let mut stats = Stats::new();
     let mut prev_frame: Option<SensorFrame> = None;
