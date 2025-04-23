@@ -17,7 +17,12 @@ def create_bno055(i2c_device: str = "/dev/i2c-1") -> ImuReader:
     return create_bno055_reader(i2c_device)
 
 
-def create_hiwonder(serial_port: str = "/dev/ttyUSB0", baud_rate: int = 115200, timeout_secs: float = 1.0, auto_detect_baud_rate: bool = False) -> ImuReader:
+def create_hiwonder(
+    serial_port: str = "/dev/ttyUSB0",
+    baud_rate: int = 115200,
+    timeout_secs: float = 1.0,
+    auto_detect_baud_rate: bool = False,
+) -> ImuReader:
     """Create a Hiwonder IMU reader on the specified serial port."""
     return create_hiwonder_reader(serial_port, baud_rate, timeout_secs, auto_detect_baud_rate)
 
