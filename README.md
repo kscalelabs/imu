@@ -6,6 +6,10 @@ Defines a package to interact with IMUs.
 
 See the documentation [here](https://docs.kscale.dev/robot/imu) for instructions on getting started with this package.
 
+## Development
+
+Please make sure everything is `cargo fmt`'d and `cargo clippy`'d.
+
 ## Currently Supported IMUs
 
 - [BNO055](./imu/bno055/README.md)
