@@ -1,7 +1,7 @@
 // Example usage:
 // RUST_LOG=info cargo run --bin read_hiwonder -- --device /dev/tty.usbserial-110 --baud_rate 230400
 use clap::Parser;
-use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Quaternion, Vector3};
+use hiwonder::{HiwonderReader, ImuFrequency, ImuReader, Output, Quaternion, Vector3};
 use std::io;
 use std::thread::sleep;
 use std::time::{Duration, Instant};

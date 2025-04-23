@@ -104,6 +104,7 @@ impl HiwonderReader {
         }
 
         let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
+
         let setup_timeout = Duration::from_secs(1);
         reader.write_command(
             &EnableOutputCommand::new(enabled_outputs),
@@ -638,6 +639,11 @@ impl HiwonderReader {
     pub fn set_bandwidth(&self, bandwidth: u32, timeout: Duration) -> Result<(), ImuError> {
         let bandwidth_enum = Bandwidth::try_from(bandwidth)?;
         self.write_command(&SetBandwidthCommand::new(bandwidth_enum), true, timeout)?;
+        Ok(())
+    }
+
+    pub fn set_output_mode(&self, mode: Output, timeout: Duration) -> Result<(), ImuError> {
+        self.write_command(&EnableOutputCommand::new(mode), true, timeout)?;
         Ok(())
     }
 }
