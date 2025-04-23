@@ -43,8 +43,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-wheels:
-    name: Build ${{ matrix.arch }} wheels
+  build-linux-wheels:
+    name: Build Linux wheels (${{ matrix.arch }})
     timeout-minutes: 360
     runs-on: ubuntu-latest
     if: inputs.publish_imu_py
@@ -110,6 +110,47 @@ jobs:
           path: |
             dist/*.whl
 
+  build-macos-wheels:
+    name: Build macOS wheels
+    timeout-minutes: 60
+    runs-on: macos-latest
+    if: inputs.publish_imu_py
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cibuildwheel
+        run: python -m pip install --upgrade pip cibuildwheel
+        shell: bash
+
+      - name: Build macOS package
+        env:
+          CIBW_SKIP: "pp*"
+          CIBW_BEFORE_BUILD: |
+            pip install setuptools-rust
+          CIBW_ENVIRONMENT: |
+            PATH="$HOME/.cargo/bin:$PATH"
+            CARGO_NET_GIT_FETCH_WITH_CLI=true
+        run: |
+          cibuildwheel --output-dir dist
+
+      - name: Upload macOS wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos
+          path: dist/*.whl
+
   build-source-dist:
     name: Build Python package (source distribution)
     timeout-minutes: 10
@@ -148,7 +189,7 @@ jobs:
             dist/*.tar.gz
 
   publish-wheels:
-    needs: [build-wheels, build-source-dist]
+    needs: [build-linux-wheels, build-macos-wheels, build-source-dist]
     name: Publish Python wheels
     timeout-minutes: 10
     runs-on: ubuntu-latest
