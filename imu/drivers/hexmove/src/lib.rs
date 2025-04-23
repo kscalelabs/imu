@@ -262,7 +262,7 @@ impl ImuReader for HexmoveImuReader {
             .data
             .read()
             .map_err(|e| ImuError::LockError(e.to_string()))?;
-        Ok(imu_data.clone())
+        Ok(*imu_data)
     }
 
     fn stop(&self) -> Result<(), ImuError> {
@@ -273,18 +273,6 @@ impl ImuReader for HexmoveImuReader {
         *running = false;
         Ok(())
     }
-}
-
-fn calculate_variance(x: &[f32], y: &[f32], z: &[f32]) -> (f32, f32, f32) {
-    let x_mean = x.iter().sum::<f32>() / x.len() as f32;
-    let y_mean = y.iter().sum::<f32>() / y.len() as f32;
-    let z_mean = z.iter().sum::<f32>() / z.len() as f32;
-
-    let x_var = x.iter().map(|v| (v - x_mean).powi(2)).sum::<f32>() / x.len() as f32;
-    let y_var = y.iter().map(|v| (v - y_mean).powi(2)).sum::<f32>() / y.len() as f32;
-    let z_var = z.iter().map(|v| (v - z_mean).powi(2)).sum::<f32>() / z.len() as f32;
-
-    (x_var, y_var, z_var)
 }
 
 impl Drop for HexmoveImuReader {
