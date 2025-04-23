@@ -468,7 +468,7 @@ impl HiwonderReader {
                 .map_err(|_| ImuError::WriteError("Mode lock poisoned".to_string()))?;
             *mode_guard = ImuMode::Write;
             debug!("Mode set to Write for register {:?}.", command.register());
-    }
+        }
 
         struct ModeGuard<'a> {
             mode: &'a Arc<RwLock<ImuMode>>,
