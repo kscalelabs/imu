@@ -96,8 +96,8 @@ impl Bmi088 {
     /// Reads raw accelerometer data without remapping.
     pub fn read_raw_accelerometer(&mut self) -> Result<Vector3, ImuError> {
         let mut buf = [0u8; 6];
-        for i in 0..6 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .accel_i2c
                 .smbus_read_byte_data(AccelRegisters::AccelXLsb as u8 + i as u8)
                 .map_err(BmiI2CError)?;
@@ -121,8 +121,8 @@ impl Bmi088 {
     /// Reads raw gyroscope data without remapping.
     pub fn read_raw_gyroscope(&mut self) -> Result<Vector3, ImuError> {
         let mut buf = [0u8; 6];
-        for i in 0..6 {
-            buf[i] = self
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = self
                 .gyro_i2c
                 .smbus_read_byte_data(GyroRegisters::XLsb as u8 + i as u8)
                 .map_err(BmiI2CError)?;
@@ -233,7 +233,7 @@ impl Bmi088Reader {
                         }
                         ImuCommand::Reset => {
                             // Reinitialize if needed.
-                            let _ = imu = Bmi088::new(&i2c_bus).unwrap();
+                            imu = Bmi088::new(&i2c_bus).unwrap();
                         }
                         ImuCommand::Stop => {
                             if let Ok(mut w) = running.write() {
