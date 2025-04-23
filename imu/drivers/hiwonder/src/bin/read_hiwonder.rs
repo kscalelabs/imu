@@ -27,12 +27,12 @@ struct SensorFrame {
 impl SensorFrame {
     fn from_data(data: &hiwonder::ImuData) -> Self {
         SensorFrame {
-            accelerometer: data.accelerometer.unwrap_or(Vector3::default()),
-            gyroscope: data.gyroscope.unwrap_or(Vector3::default()),
-            euler: data.euler.unwrap_or(Vector3::default()),
-            quaternion: data.quaternion.unwrap_or(Quaternion::default()),
-            magnetometer: data.magnetometer.unwrap_or(Vector3::default()),
-            temperature: data.temperature.unwrap_or(0.0),
+            accelerometer: data.accelerometer.unwrap_or_default(),
+            gyroscope: data.gyroscope.unwrap_or_default(),
+            euler: data.euler.unwrap_or_default(),
+            quaternion: data.quaternion.unwrap_or_default(),
+            magnetometer: data.magnetometer.unwrap_or_default(),
+            temperature: data.temperature.unwrap_or_default(),
         }
     }
 
