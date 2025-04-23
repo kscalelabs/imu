@@ -1,8 +1,8 @@
+use clap::Parser;
 use hiwonder::{HiwonderReader, ImuReader, Quaternion, Vector3};
 use std::io;
-use std::time::{Duration, Instant};
 use std::thread::sleep;
-use clap::Parser;
+use std::time::{Duration, Instant};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -38,7 +38,7 @@ impl SensorFrame {
 
     fn is_duplicate(&self, other: &SensorFrame) -> (bool, Vec<&str>) {
         let mut changed_sensors = Vec::new();
-        
+
         // Check each sensor independently
         if self.accelerometer != other.accelerometer {
             changed_sensors.push("accel");
@@ -111,7 +111,6 @@ fn main() -> io::Result<()> {
         }
     };
 
-
     let mut stats = Stats::new();
     let mut prev_frame: Option<SensorFrame> = None;
 
@@ -122,7 +121,7 @@ fn main() -> io::Result<()> {
     let period = Duration::from_secs_f64(1.0 / hz);
     let mut next_time = Instant::now() + period;
 
-    loop {        
+    loop {
         match reader.get_data() {
             Ok(data) => {
                 stats.total_readings += 1;
@@ -138,7 +137,8 @@ fn main() -> io::Result<()> {
                 if !is_duplicate {
                     stats.unique_readings += 1;
                     // Update change counts for each sensor
-                    for sensor in &changed_sensors {  // Changed to use reference
+                    for sensor in &changed_sensors {
+                        // Changed to use reference
                         if let Some(count) = stats.sensor_changes.get_mut(*sensor) {
                             *count += 1;
                         }
@@ -180,12 +180,18 @@ fn main() -> io::Result<()> {
                     current_frame.magnetometer.y,
                     current_frame.magnetometer.z,
                     current_frame.temperature,
-                    data.quaternion.unwrap_or(Quaternion::default())
-                        .rotate(Vector3::new(0.0, 0.0, -1.0)).x,
-                    data.quaternion.unwrap_or(Quaternion::default())
-                        .rotate(Vector3::new(0.0, 0.0, -1.0)).y,
-                    data.quaternion.unwrap_or(Quaternion::default())
-                        .rotate(Vector3::new(0.0, 0.0, -1.0)).z,
+                    data.quaternion
+                        .unwrap_or(Quaternion::default())
+                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .x,
+                    data.quaternion
+                        .unwrap_or(Quaternion::default())
+                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .y,
+                    data.quaternion
+                        .unwrap_or(Quaternion::default())
+                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .z,
                     is_duplicate,
                     if !is_duplicate {
                         format!("(changed: {})", changed_sensors.join(", "))
