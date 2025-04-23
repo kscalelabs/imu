@@ -245,18 +245,42 @@ fn create_hiwonder_reader(
                 })?;
 
             match frequency {
-                0.2 => reader.set_frequency(ImuFrequency::Hz0_2, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                0.5 => reader.set_frequency(ImuFrequency::Hz0_5, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                1.0 => reader.set_frequency(ImuFrequency::Hz1, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                2.0 => reader.set_frequency(ImuFrequency::Hz2, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                5.0 => reader.set_frequency(ImuFrequency::Hz5, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                10.0 => reader.set_frequency(ImuFrequency::Hz10, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                20.0 => reader.set_frequency(ImuFrequency::Hz20, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                50.0 => reader.set_frequency(ImuFrequency::Hz50, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                100.0 => reader.set_frequency(ImuFrequency::Hz100, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                200.0 => reader.set_frequency(ImuFrequency::Hz200, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                1.1 => reader.set_frequency(ImuFrequency::Single, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
-                0.0 => reader.set_frequency(ImuFrequency::None, Duration::from_secs(1)).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                0.2 => reader
+                    .set_frequency(ImuFrequency::Hz0_2, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                0.5 => reader
+                    .set_frequency(ImuFrequency::Hz0_5, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                1.0 => reader
+                    .set_frequency(ImuFrequency::Hz1, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                2.0 => reader
+                    .set_frequency(ImuFrequency::Hz2, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                5.0 => reader
+                    .set_frequency(ImuFrequency::Hz5, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                10.0 => reader
+                    .set_frequency(ImuFrequency::Hz10, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                20.0 => reader
+                    .set_frequency(ImuFrequency::Hz20, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                50.0 => reader
+                    .set_frequency(ImuFrequency::Hz50, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                100.0 => reader
+                    .set_frequency(ImuFrequency::Hz100, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                200.0 => reader
+                    .set_frequency(ImuFrequency::Hz200, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                1.1 => reader
+                    .set_frequency(ImuFrequency::Single, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                0.0 => reader
+                    .set_frequency(ImuFrequency::None, Duration::from_secs(1))
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
                 _ => return Err(PyRuntimeError::new_err("Invalid frequency".to_string())),
             }
             Ok(PyImuReader {

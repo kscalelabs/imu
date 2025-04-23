@@ -140,12 +140,16 @@ fn main() -> io::Result<()> {
             )
         })?;
 
-    reader.set_output_mode(
+    reader
+        .set_output_mode(
             Output::QUATERNION | Output::ANGLE | Output::MAG | Output::ACC | Output::GYRO,
             Duration::from_secs(1),
         )
         .map_err(|e| {
-            io::Error::new(io::ErrorKind::Other, format!("Failed to set output mode: {}", e))
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to set output mode: {}", e),
+            )
         })?;
 
     let mut stats = Stats::new();
