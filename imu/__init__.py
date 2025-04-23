@@ -24,9 +24,10 @@ def create_hiwonder(
     timeout_secs: float = 1.0,
     auto_detect_baud_rate: bool = False,
     output_modes: list[HiwonderOutput] = [HiwonderOutput.GYRO, HiwonderOutput.ACC, HiwonderOutput.ANGLE, HiwonderOutput.MAG, HiwonderOutput.QUATERNION],
+    frequency: float = 100.0,
 ) -> ImuReader:
     """Create a Hiwonder IMU reader on the specified serial port."""
-    return create_hiwonder_reader(serial_port, baud_rate, timeout_secs, auto_detect_baud_rate, output_modes)
+    return create_hiwonder_reader(serial_port, baud_rate, timeout_secs, auto_detect_baud_rate, output_modes, frequency)
 
 
 def create_bmi088(i2c_device: str = "/dev/i2c-1") -> ImuReader:
