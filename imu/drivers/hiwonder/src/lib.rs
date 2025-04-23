@@ -77,7 +77,7 @@ impl HiwonderReader {
         reader.write_command(&UnlockCommand::new(), false, Duration::from_secs(10))?;
         reader.write_command(&EnableOutputCommand::new(enabled_outputs), false, Duration::from_secs(10))?;
         reader.write_command(&SaveCommand::new(), false, Duration::from_secs(10))?;
-        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), true, Duration::from_secs(10))?;
+        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), false, Duration::from_secs(10))?;
 
         reader.start_reading_thread()?;
 
