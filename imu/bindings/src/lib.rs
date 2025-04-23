@@ -171,7 +171,7 @@ fn create_bno055_reader(i2c_device: &str) -> PyResult<PyImuReader> {
 
 #[pyfunction]
 fn create_hiwonder_reader(serial_port: &str, baud_rate: u32) -> PyResult<PyImuReader> {
-    match imu::HiwonderReader::new(serial_port, baud_rate) {
+    match imu::HiwonderReader::new(serial_port, baud_rate, Duration::from_secs(1), true) {
         Ok(reader) => Ok(PyImuReader {
             reader: Box::new(reader),
         }),
