@@ -106,7 +106,6 @@ impl From<PyQuaternion> for Quaternion {
 // Generic IMU Reader class for Python
 #[pyclass(name = "ImuReader")]
 struct PyImuReader {
-    // We'll use a Box<dyn ImuReader> to allow different implementations
     reader: Box<dyn ImuReader + Send + Sync>,
 }
 
