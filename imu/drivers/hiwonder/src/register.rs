@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use bitflags::bitflags;
 use hiwonder_macros::{BytableRegistrableCommand, DefaultableCommand, Registrable};
 use imu_traits::{ImuError, ImuFrequency};
@@ -320,6 +322,7 @@ pub struct SetBaudRateCommand {
     pub command: Command,
 }
 
+#[derive(Debug, Clone)]
 pub enum BaudRate {
     Baud4800,
     Baud9600,
@@ -352,6 +355,24 @@ impl TryFrom<u32> for BaudRate {
                     value
                 )))
             }
+        })
+    }
+}
+
+impl TryInto<u32> for BaudRate {
+    type Error = ImuError;
+
+    fn try_into(self) -> Result<u32, Self::Error> {
+        Ok(match self {
+            BaudRate::Baud4800 => 4800,
+            BaudRate::Baud9600 => 9600,
+            BaudRate::Baud19200 => 19200,
+            BaudRate::Baud38400 => 38400,
+            BaudRate::Baud57600 => 57600,
+            BaudRate::Baud115200 => 115200,
+            BaudRate::Baud230400 => 230400,
+            BaudRate::Baud460800 => 460800,
+            BaudRate::Baud921600 => 921600,
         })
     }
 }

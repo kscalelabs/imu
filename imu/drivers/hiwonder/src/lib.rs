@@ -55,31 +55,192 @@ pub enum ImuCommand {
 }
 
 impl HiwonderReader {
-    pub fn new(interface: &str, baud_rate: u32, timeout: Duration) -> Result<Self, ImuError> {
+    pub fn new(interface: &str, desired_baud_rate: u32, timeout: Duration) -> Result<Self, ImuError> {
         let data = Arc::new(RwLock::new(ImuData::default()));
         let running = Arc::new(RwLock::new(true));
+        let frame_parser_arc = Arc::new(Mutex::new(FrameParser::new(Some(512))));
 
-        let port = serialport::new(interface, baud_rate)
-            .timeout(timeout)
-            .open()?;
+        let (final_port, _final_baud_rate) = Self::detect_and_set_baud_rate(interface, desired_baud_rate, Duration::from_secs(10))
+            .map_err(|e| ImuError::ConfigurationError(format!("Baud rate detection/setting failed: {}", e)))?;
+
+        let port_arc = Arc::new(Mutex::new(final_port)); // Wrap the final port
 
         let reader = HiwonderReader {
             data: Arc::clone(&data),
-            mode: Arc::new(RwLock::new(ImuMode::Read)),
-            port: Arc::new(Mutex::new(port)),
+            mode: Arc::new(RwLock::new(ImuMode::Read)), // Start in Read mode
+            port: Arc::clone(&port_arc),
             running: Arc::clone(&running),
-            frame_parser: Arc::new(Mutex::new(FrameParser::new(Some(512)))),
+            frame_parser: frame_parser_arc, // Use the parser created earlier
             timeout,
         };
 
-        let enabled_outputs = Output::ACC; //| Output::GYRO | Output::ANGLE | Output::QUATERNION;
+        if let Ok(mut guard) = reader.frame_parser.lock() {
+            guard.clear_buffer();
+        }
 
-
-        reader.write_command(&EnableOutputCommand::new(enabled_outputs), true, Duration::from_secs(5))?;
-        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), true, Duration::from_secs(5))?;
+        let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
+        let setup_timeout = Duration::from_secs(1);
+        reader.write_command(&EnableOutputCommand::new(enabled_outputs), true, setup_timeout)?;
+        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), true, setup_timeout)?;
         reader.start_reading_thread()?;
 
         Ok(reader)
+    }
+
+    /// Detects the current baud rate, sets it to the desired rate if necessary,
+    /// and returns the opened serial port configured at the desired baud rate.
+    fn detect_and_set_baud_rate(
+        interface: &str,
+        desired_baud_rate: u32,
+        timeout: Duration,
+    ) -> Result<(Box<dyn serialport::SerialPort>, u32), ImuError> {
+        let baud_rates_to_try = [BaudRate::Baud4800,
+                                                BaudRate::Baud9600,
+                                                BaudRate::Baud19200,
+                                                BaudRate::Baud38400,
+                                                BaudRate::Baud57600,
+                                                BaudRate::Baud115200,
+                                                BaudRate::Baud230400,
+                                                BaudRate::Baud460800,
+                                                BaudRate::Baud921600];
+
+        let mut detected_port: Option<Box<dyn serialport::SerialPort>> = None;
+        let mut current_baud_rate: Option<u32> = None;
+
+        let overall_start_time = Instant::now();
+
+        let time_per_baud = timeout.checked_div(baud_rates_to_try.len() as u32 + 2)
+                                       .unwrap_or(Duration::from_millis(200));
+
+        info!("Attempting to detect IMU baud rate...");
+
+        for test_baud in baud_rates_to_try.iter() {
+            if overall_start_time.elapsed() > timeout {
+                return Err(ImuError::ConfigurationError(format!("Baud rate detection timed out after {:?}", timeout)));
+            }
+            debug!("Trying baud rate: {:?}", test_baud);
+
+            let baud_rate = test_baud.clone().try_into().map_err(|e| ImuError::ConfigurationError(format!("Failed to convert baud rate: {}", e)))?;
+            match serialport::new(interface, baud_rate)
+                .timeout(time_per_baud)
+                .open()
+            {
+                Ok(mut port) => {
+                    debug!("Port opened at {}", baud_rate);
+                    let mut temp_parser = FrameParser::new(Some(128)); // Smaller buffer for quick check
+                    thread::sleep(Duration::from_millis(50)); // Allow port init
+
+                    let unlock_cmd = UnlockCommand::new().to_bytes();
+                    let read_cmd = ReadAddressCommand::new(Register::GpsBaud).to_bytes();
+
+                    if port.write_all(&unlock_cmd).is_err() {
+                        warn!("Failed to write unlock cmd at {}", baud_rate);
+                        continue;
+                    }
+                    thread::sleep(Duration::from_millis(30));
+                    if port.write_all(&read_cmd).is_err() {
+                        warn!("Failed to write read cmd at {}", baud_rate);
+                        continue;
+                    }
+                    debug!("Sent Unlock and Read WhoAmI command at {}", baud_rate);
+
+                    // Attempt to read response
+                    let mut buffer = [0u8; 256];
+                    let read_start_time = Instant::now();
+                    let mut found_response = false;
+                    while read_start_time.elapsed() < time_per_baud {
+                        match port.read(&mut buffer) {
+                            Ok(n) if n > 0 => {
+                                trace!("Read {} bytes at {}: {:?}", n, baud_rate, &buffer[..n]);
+                                match temp_parser.parse(&buffer[..n]) {
+                                    Ok(frames) => {
+                                        if frames.iter().any(|f| matches!(f, ReadFrame::GenericRead { .. })) {
+                                            info!("Detected working baud rate: {}", baud_rate);
+                                            found_response = true;
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => trace!("Parse error at {}: {}", baud_rate, e),
+                                }
+                            }
+                            Ok(_) => {} // No data
+                            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                                trace!("Read timed out at {}, continuing check.", baud_rate);
+                            }
+                            Err(e) => {
+                                warn!("Read error at {}: {}", baud_rate, e);
+                                break;
+                            }
+                        }
+                        thread::sleep(Duration::from_millis(10));
+                    }
+
+                    if found_response {
+                        detected_port = Some(port);
+                        current_baud_rate = Some(baud_rate);
+                        break;
+                    } else {
+                        debug!("No valid response received at {}", baud_rate);
+                    }
+                }
+                Err(e) => {
+                    debug!("Failed to open port at {}: {}", baud_rate, e);
+                }
+            }
+        }
+
+        let mut final_port = match detected_port {
+            Some(port) => port,
+            None => return Err(ImuError::ConfigurationError("Could not find working baud rate for IMU.".to_string())),
+        };
+
+        let current_baud = match current_baud_rate {
+            Some(baud) => baud,
+            None => return Err(ImuError::ConfigurationError("Failed to detect current IMU baud rate.".to_string())),
+        };
+
+        if current_baud != desired_baud_rate {
+            info!("Current IMU baud rate is {}, changing to {}.", current_baud, desired_baud_rate);
+
+            let desired_baud_enum = BaudRate::try_from(desired_baud_rate)
+                .map_err(|e| ImuError::ConfigurationError(format!("Desired baud rate {} invalid: {}", desired_baud_rate, e)))?;
+
+            let set_baud_cmd = SetBaudRateCommand::new(desired_baud_enum);
+            let save_cmd = SaveCommand::new();
+            let unlock_cmd = UnlockCommand::new();
+
+            let command_timeout = Duration::from_secs(1);
+            final_port.set_timeout(command_timeout)
+                .map_err(|e| ImuError::ConfigurationError(format!("Failed to set write timeout: {}", e)))?;
+
+            final_port.write_all(&unlock_cmd.to_bytes())
+                .map_err(|e| ImuError::WriteError(format!("Failed to write unlock before set baud: {}", e)))?;
+            thread::sleep(Duration::from_millis(30));
+
+            final_port.write_all(&set_baud_cmd.to_bytes())
+                .map_err(|e| ImuError::WriteError(format!("Failed to write set baud rate command: {}", e)))?;
+
+            final_port.write_all(&save_cmd.to_bytes())
+                .map_err(|e| ImuError::WriteError(format!("Failed to write save command after set baud: {}", e)))?;
+
+            info!("IMU baud rate change command sent. Re-opening port at {}.", desired_baud_rate);
+            drop(final_port); 
+            thread::sleep(Duration::from_millis(200));
+
+            final_port = serialport::new(interface, desired_baud_rate)
+                .timeout(timeout)
+                .open()
+                .map_err(|e| ImuError::ConfigurationError(format!("Failed to re-open port at new baud rate {}: {}", desired_baud_rate, e)))?;
+
+            info!("Port re-opened successfully at desired baud rate {}.", desired_baud_rate);
+
+        } else {
+            info!("IMU already at desired baud rate {}.", desired_baud_rate);
+            final_port.set_timeout(timeout)
+                .map_err(|e| ImuError::ConfigurationError(format!("Failed to set final timeout: {}", e)))?;
+        }
+
+        Ok((final_port, desired_baud_rate))
     }
 
     fn read_frames(
@@ -343,17 +504,13 @@ impl HiwonderReader {
     }
 
     pub fn set_frequency(&self, frequency: ImuFrequency, timeout: Duration) -> Result<(), ImuError> {
-        self.write_command(&UnlockCommand::new(), false, timeout)?;
         self.write_command(&SetFrequencyCommand::new(frequency), true, timeout)?;
-        self.write_command(&SaveCommand::new(), false, timeout)?;
         Ok(())
     }
 
     pub fn set_baud_rate(&self, baud_rate: u32, timeout: Duration) -> Result<(), ImuError> {
         let baud_enum = BaudRate::try_from(baud_rate).map_err(|e| ImuError::ConfigurationError(format!("{}",e)))?;
-        self.write_command(&UnlockCommand::new(), false, timeout)?;
         self.write_command(&SetBaudRateCommand::new(baud_enum), true, timeout)?;
-        self.write_command(&SaveCommand::new(), false, timeout)?;
         Ok(())
     }
 }

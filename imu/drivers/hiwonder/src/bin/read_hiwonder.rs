@@ -86,41 +86,41 @@ fn main() -> io::Result<()> {
                 let magnetometer = data.magnetometer.unwrap_or(Vector3::default());
                 let gravity = quaternion.rotate(Vector3::new(0.0, 0.0, -1.0));
 
-                // println!(
-                //     "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                //      gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3} (Changed: {})\n\
-                //      angle: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                //      quaternion: x: {: >10.3} y: {: >10.3} z: {: >10.3} w: {: >10.3}\n\
-                //      mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                //      temp:  {: >10.3}\n\
-                //      gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
-                //      num_steps (gyro changed): {: >10}\n\
-                //      steps/sec: {: >10.2}\n\
-                //      ",
-                //     accel.x,
-                //     accel.y,
-                //     accel.z,
-                //     gyro_for_print.x,
-                //     gyro_for_print.y,
-                //     gyro_for_print.z,
-                //     gyro_changed,
-                //     angle.x,
-                //     angle.y,
-                //     angle.z,
-                //     quaternion.x,
-                //     quaternion.y,
-                //     quaternion.z,
-                //     quaternion.w,
-                //     magnetometer.x,
-                //     magnetometer.y,
-                //     magnetometer.z,
-                //     data.temperature.unwrap_or(0.0),
-                //     gravity.x,
-                //     gravity.y,
-                //     gravity.z,
-                //     num_steps,
-                //     num_steps as f32 / start_time.elapsed().as_secs_f32(),
-                // );
+                println!(
+                    "acc:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                     gyro:  x: {: >10.3} y: {: >10.3} z: {: >10.3} (Changed: {})\n\
+                     angle: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                     quaternion: x: {: >10.3} y: {: >10.3} z: {: >10.3} w: {: >10.3}\n\
+                     mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                     temp:  {: >10.3}\n\
+                     gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                     num_steps (gyro changed): {: >10}\n\
+                     steps/sec: {: >10.2}\n\
+                     ",
+                    accel.x,
+                    accel.y,
+                    accel.z,
+                    gyro_for_print.x,
+                    gyro_for_print.y,
+                    gyro_for_print.z,
+                    gyro_changed,
+                    angle.x,
+                    angle.y,
+                    angle.z,
+                    quaternion.x,
+                    quaternion.y,
+                    quaternion.z,
+                    quaternion.w,
+                    magnetometer.x,
+                    magnetometer.y,
+                    magnetometer.z,
+                    data.temperature.unwrap_or(0.0),
+                    gravity.x,
+                    gravity.y,
+                    gravity.z,
+                    num_steps,
+                    num_steps as f32 / start_time.elapsed().as_secs_f32(),
+                );
             }
             Err(e) if e.to_string().contains("No new data available") => {}
             Err(e) => {
