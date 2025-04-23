@@ -1,9 +1,8 @@
-
 use clap::Parser;
 use hiwonder::HiwonderReader;
-use tracing::info;
 use std::io;
 use std::time::Duration;
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -49,11 +48,9 @@ fn main() -> io::Result<()> {
             }
             Ok(())
         }
-        Err(e) => {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Failed to read parameters: {}", e),
-            ))
-        }
-    }   
+        Err(e) => Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to read parameters: {}", e),
+        )),
+    }
 }

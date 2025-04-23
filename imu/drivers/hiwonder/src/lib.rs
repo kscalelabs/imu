@@ -6,8 +6,8 @@ pub use register::*;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info, trace, warn};
 use strum::IntoEnumIterator;
+use tracing::{debug, error, info, trace, warn};
 
 pub trait FrequencyToByte {
     fn to_byte(&self) -> u8;
@@ -130,11 +130,12 @@ impl HiwonderReader {
         timeout: Duration,
     ) -> Result<(Box<dyn serialport::SerialPort>, u32), ImuError> {
         let mut baud_rates_to_try = Vec::new();
-        baud_rates_to_try.push(
-            BaudRate::try_from(desired_baud_rate).map_err(|e| {
-                ImuError::ConfigurationError(format!("Desired baud rate {} invalid: {}", desired_baud_rate, e))
-            })?,
-        );
+        baud_rates_to_try.push(BaudRate::try_from(desired_baud_rate).map_err(|e| {
+            ImuError::ConfigurationError(format!(
+                "Desired baud rate {} invalid: {}",
+                desired_baud_rate, e
+            ))
+        })?);
 
         let all_baud_rates = [
             BaudRate::Baud4800,
@@ -648,15 +649,20 @@ impl HiwonderReader {
         Ok(())
     }
 
-    pub fn read_register(&self, register: Register, timeout: Duration) -> Result<[u8; 8], ImuError> {
-        let mut port_guard = self.port.lock().map_err(|e| {
-            ImuError::ReadError(format!("Failed to acquire lock on port: {}", e))
-        })?;
+    pub fn read_register(
+        &self,
+        register: Register,
+        timeout: Duration,
+    ) -> Result<[u8; 8], ImuError> {
+        let mut port_guard = self
+            .port
+            .lock()
+            .map_err(|e| ImuError::ReadError(format!("Failed to acquire lock on port: {}", e)))?;
 
         let read_cmd = ReadAddressCommand::new(register).to_bytes();
-        port_guard.write_all(&read_cmd).map_err(|e| {
-            ImuError::WriteError(format!("Failed to write read command: {}", e))
-        })?;
+        port_guard
+            .write_all(&read_cmd)
+            .map_err(|e| ImuError::WriteError(format!("Failed to write read command: {}", e)))?;
 
         let mut parser_guard = self.frame_parser.lock().map_err(|e| {
             ImuError::ReadError(format!("Failed to acquire lock on frame parser: {}", e))
@@ -674,19 +680,22 @@ impl HiwonderReader {
                         trace!("Read {} bytes: {:?}", n, &buffer[..n]);
                         match parser_guard.parse(&buffer[0..n]) {
                             Ok(response) => {
-                            for frame in response {
-                                match frame {
-                                    ReadFrame::GenericRead { data } => {
-                                        return Ok(data);
-                                    }
-                                    _ => {
-                                        continue;
+                                for frame in response {
+                                    match frame {
+                                        ReadFrame::GenericRead { data } => {
+                                            return Ok(data);
+                                        }
+                                        _ => {
+                                            continue;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Err(e) => {
-                            return Err(ImuError::ReadError(format!("Failed to parse response: {}", e)));
+                            Err(e) => {
+                                return Err(ImuError::ReadError(format!(
+                                    "Failed to parse response: {}",
+                                    e
+                                )));
                             }
                         }
                     }
@@ -695,16 +704,21 @@ impl HiwonderReader {
                     debug!("Read timed out, continuing wait...");
                 }
                 Err(e) => {
-                    return Err(ImuError::ReadError(format!("Failed to read from port: {}", e)));
+                    return Err(ImuError::ReadError(format!(
+                        "Failed to read from port: {}",
+                        e
+                    )));
                 }
             }
         }
-        
-        Err(ImuError::ReadError("Timeout reading register".to_string()))
 
+        Err(ImuError::ReadError("Timeout reading register".to_string()))
     }
 
-    pub fn read_all_registers(&self, timeout_per_register: Duration) -> Result<Vec<(Register, [u8; 8])>, ImuError> {
+    pub fn read_all_registers(
+        &self,
+        timeout_per_register: Duration,
+    ) -> Result<Vec<(Register, [u8; 8])>, ImuError> {
         let all_registers = Register::iter();
         let register_count = Register::iter().count();
 
@@ -737,12 +751,18 @@ impl HiwonderReader {
             info!("Successfully read {} registers.", results.len());
             Ok(results)
         } else {
-            error!("Failed to read {} registers out of attempted {}.", errors.len(), register_count - errors.len()); // Adjust count based on skipped
-            // Depending on requirements, you might want to return the partial results along with the errors.
-            // For now, returning a generic error indicating partial failure.
+            error!(
+                "Failed to read {} registers out of attempted {}.",
+                errors.len(),
+                register_count - errors.len()
+            ); // Adjust count based on skipped
+               // Depending on requirements, you might want to return the partial results along with the errors.
+               // For now, returning a generic error indicating partial failure.
             Err(ImuError::ReadError(format!(
                 "Failed to read {} registers. First error on {:?}: {}",
-                errors.len(), errors[0].0, errors[0].1
+                errors.len(),
+                errors[0].0,
+                errors[0].1
             )))
         }
     }
