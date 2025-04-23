@@ -162,11 +162,22 @@ impl PyImuReader {
 // Factory functions for different IMU types - conditional compilation
 #[pyfunction]
 fn create_bno055_reader(i2c_device: &str) -> PyResult<PyImuReader> {
-    match imu::Bno055Reader::new(i2c_device) {
-        Ok(reader) => Ok(PyImuReader {
-            reader: Box::new(reader),
-        }),
-        Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+    #[cfg(target_os = "linux")]
+    {
+        match imu::Bno055Reader::new(i2c_device) {
+            Ok(reader) => Ok(PyImuReader {
+                reader: Box::new(reader),
+            }),
+            Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Suppress unused variable warning on non-Linux platforms
+        let _ = i2c_device;
+        Err(PyRuntimeError::new_err(
+            "BNO055 reader is only available on Linux systems.",
+        ))
     }
 }
 
@@ -192,21 +203,43 @@ fn create_hiwonder_reader(
 
 #[pyfunction]
 fn create_bmi088_reader(i2c_device: &str) -> PyResult<PyImuReader> {
-    match imu::Bmi088Reader::new(i2c_device) {
-        Ok(reader) => Ok(PyImuReader {
-            reader: Box::new(reader),
-        }),
-        Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+    #[cfg(target_os = "linux")]
+    {
+        match imu::Bmi088Reader::new(i2c_device) {
+            Ok(reader) => Ok(PyImuReader {
+                reader: Box::new(reader),
+            }),
+            Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Suppress unused variable warning on non-Linux platforms
+        let _ = i2c_device;
+        Err(PyRuntimeError::new_err(
+            "BMI088 reader is only available on Linux systems.",
+        ))
     }
 }
 
 #[pyfunction]
 fn create_hexmove_reader(can_interface: &str, node_id: u8, param_id: u8) -> PyResult<PyImuReader> {
-    match imu::HexmoveImuReader::new(can_interface, node_id, param_id) {
-        Ok(reader) => Ok(PyImuReader {
-            reader: Box::new(reader),
-        }),
-        Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+    #[cfg(target_os = "linux")]
+    {
+        match imu::HexmoveImuReader::new(can_interface, node_id, param_id) {
+            Ok(reader) => Ok(PyImuReader {
+                reader: Box::new(reader),
+            }),
+            Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Suppress unused variable warnings on non-Linux platforms
+        let _ = (can_interface, node_id, param_id);
+        Err(PyRuntimeError::new_err(
+            "Hexmove reader is only available on Linux systems.",
+        ))
     }
 }
 
