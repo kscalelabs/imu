@@ -11,8 +11,7 @@ license.workspace = true
 [dependencies]
 serialport = "4.2.0"
 imu-traits = "0.0.2"
-# hiwonder_macros = "0.1.5"
-hiwonder_macros = { path = "hiwonder_macros" }
+hiwonder_macros = "0.1.6"
 bitflags = "2.9.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
