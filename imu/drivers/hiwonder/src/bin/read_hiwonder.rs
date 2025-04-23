@@ -19,7 +19,7 @@ fn main() -> io::Result<()> {
         // TODO: This is probably not the best way to do this (can only read
         // at baud rate 9600) but it is useful for debugging the numerical
         // values while on a Mac.
-        (vec!["/dev/tty.usbserial-110"], 10000)
+        (vec!["/dev/tty.usbserial-110"], 9600)
     } else {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,

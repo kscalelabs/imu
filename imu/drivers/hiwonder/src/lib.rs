@@ -72,11 +72,11 @@ impl HiwonderReader {
             timeout,
         };
 
-        let enabled_outputs = Output::ACC | Output::GYRO | Output::ANGLE | Output::QUATERNION;
+        let enabled_outputs = Output::ACC; //| Output::GYRO | Output::ANGLE | Output::QUATERNION;
 
 
-        reader.write_command(&EnableOutputCommand::new(enabled_outputs), false, Duration::from_secs(10))?;
-            // reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), false, Duration::from_secs(10))?;
+        reader.write_command(&EnableOutputCommand::new(enabled_outputs), true, Duration::from_secs(5))?;
+        reader.write_command(&SetFrequencyCommand::new(ImuFrequency::Hz200), true, Duration::from_secs(5))?;
         reader.start_reading_thread()?;
 
         Ok(reader)
@@ -247,35 +247,26 @@ impl HiwonderReader {
         // Before sending the command, unlock the IMU
         port_guard.write_all(&UnlockCommand::new().to_bytes())
             .map_err(|e| ImuError::WriteError(format!("Failed to write unlock command: {}", e)))?;
+
         std::thread::sleep(Duration::from_millis(30));
 
-        // Send multiple commands for redundancy
         debug!("Sending command {:?} to IMU", command_bytes.as_slice());
         port_guard.write_all(&command_bytes)
             .map_err(|e| ImuError::WriteError(format!("Failed to write command: {}", e)))?;
-        std::thread::sleep(Duration::from_millis(30));
 
-        port_guard.flush()?;
 
         // Save the command
         port_guard.write_all(&SaveCommand::new().to_bytes())
             .map_err(|e| ImuError::WriteError(format!("Failed to write save command: {}", e)))?;
-        std::thread::sleep(Duration::from_millis(30));
 
-        port_guard.flush()?;
-        
         debug!("Sent command {:?} to IMU", command_bytes.as_slice());
 
         if verify {
-            std::thread::sleep(Duration::from_secs(5)); // Wait for the IMU to process the command
-            // let read_command_bytes = ReadAddressCommand::new(command.register()).to_bytes();
+            std::thread::sleep(Duration::from_millis(100));
             let read_command_bytes = ReadAddressCommand::new(command.register()).to_bytes();
-            // Send multiple read commands for redundancy
-            for _ in 0..3 {
-                port_guard.write_all(&read_command_bytes)
-                    .map_err(|e| ImuError::WriteError(format!("Failed to write read command for verification: {}", e)))?;
-                std::thread::sleep(Duration::from_millis(5));
-            }
+            port_guard.write_all(&read_command_bytes)
+                .map_err(|e| ImuError::WriteError(format!("Failed to write read command for verification: {}", e)))?;
+            std::thread::sleep(Duration::from_millis(5));
 
             info!("Sent read command {:?} to IMU for verification of register {:?}", read_command_bytes.as_slice(), command.register());
 
