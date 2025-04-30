@@ -218,9 +218,21 @@ mod tests {
 
     #[test]
     fn test_vector3_equality() {
-        let v1 = Vector3 { x: 1.0, y: 2.0, z: 3.0 };
-        let v2 = Vector3 { x: 1.0, y: 2.0, z: 3.0 };
-        let v3 = Vector3 { x: 4.0, y: 5.0, z: 6.0 };
+        let v1 = Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        };
+        let v2 = Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        };
+        let v3 = Vector3 {
+            x: 4.0,
+            y: 5.0,
+            z: 6.0,
+        };
 
         assert_eq!(v1, v2);
         assert_ne!(v1, v3);
@@ -229,9 +241,24 @@ mod tests {
 
     #[test]
     fn test_quaternion_equality() {
-        let q1 = Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
-        let q2 = Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
-        let q3 = Quaternion { w: 0.707, x: 0.707, y: 0.0, z: 0.0 };
+        let q1 = Quaternion {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let q2 = Quaternion {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let q3 = Quaternion {
+            w: 0.707,
+            x: 0.707,
+            y: 0.0,
+            z: 0.0,
+        };
 
         assert_eq!(q1, q2);
         assert_ne!(q1, q3);
@@ -245,7 +272,12 @@ mod tests {
             accelerometer: Some(Vector3::new(1.0, 2.0, 3.0)),
             gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
             magnetometer: None,
-            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            quaternion: Some(Quaternion {
+                w: 1.0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
             euler: None,
             linear_acceleration: None,
             gravity: None,
@@ -255,11 +287,17 @@ mod tests {
             effective_frequency: 100.0,
         };
 
-        let data2 = ImuData { // Identical to data1
+        let data2 = ImuData {
+            // Identical to data1
             accelerometer: Some(Vector3::new(1.0, 2.0, 3.0)),
             gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
             magnetometer: None,
-            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            quaternion: Some(Quaternion {
+                w: 1.0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
             euler: None,
             linear_acceleration: None,
             gravity: None,
@@ -269,11 +307,17 @@ mod tests {
             effective_frequency: 100.0,
         };
 
-        let data3 = ImuData { // Different temperature
+        let data3 = ImuData {
+            // Different temperature
             accelerometer: Some(Vector3::new(1.0, 2.0, 3.0)),
             gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
             magnetometer: None,
-            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            quaternion: Some(Quaternion {
+                w: 1.0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
             euler: None,
             linear_acceleration: None,
             gravity: None,
@@ -283,11 +327,17 @@ mod tests {
             effective_frequency: 100.0,
         };
 
-         let data4 = ImuData { // Different accelerometer
+        let data4 = ImuData {
+            // Different accelerometer
             accelerometer: Some(Vector3::new(1.1, 2.0, 3.0)), // Changed
             gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
             magnetometer: None,
-            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            quaternion: Some(Quaternion {
+                w: 1.0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
             euler: None,
             linear_acceleration: None,
             gravity: None,
@@ -297,11 +347,17 @@ mod tests {
             effective_frequency: 100.0,
         };
 
-         let data5 = ImuData { // Different timestamp (requires a slight delay)
+        let data5 = ImuData {
+            // Different timestamp (requires a slight delay)
             accelerometer: Some(Vector3::new(1.0, 2.0, 3.0)),
             gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
             magnetometer: None,
-            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            quaternion: Some(Quaternion {
+                w: 1.0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
             euler: None,
             linear_acceleration: None,
             gravity: None,
@@ -311,12 +367,11 @@ mod tests {
             effective_frequency: 100.0,
         };
 
-
         assert_eq!(data1, data2);
         assert_ne!(data1, data3);
         assert_ne!(data1, data4);
         if data1.timestamp != data5.timestamp {
-             assert_ne!(data1, data5);
+            assert_ne!(data1, data5);
         }
     }
 }

@@ -203,7 +203,8 @@ fn main() -> io::Result<()> {
                     temp:  {: >10.3}\n\
                     gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                     Duplicate: {} {}\n\
-                    Rate: {:.1} Hz effective ({:.1} Hz raw)\n",
+                    Rate: {:.1} Hz effective ({:.1} Hz raw)\n\
+                    Direct IMU Rate: {:.1} Hz\n",
                     current_frame.accelerometer.x,
                     current_frame.accelerometer.y,
                     current_frame.accelerometer.z,
@@ -240,7 +241,8 @@ fn main() -> io::Result<()> {
                         String::new()
                     },
                     effective_rate,
-                    raw_rate
+                    raw_rate,
+                    data.effective_frequency
                 );
             }
             Err(e) if e.to_string().contains("No new data available") => {}
