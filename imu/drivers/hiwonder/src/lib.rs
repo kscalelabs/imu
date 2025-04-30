@@ -443,7 +443,7 @@ impl HiwonderReader {
                                 continue;
                             }   
                         };
-                        if last_data != current_data {
+                        if last_data != *current_data {
                             num_reads += 1;
                             let runtime = start_time.elapsed().as_secs_f64();
                             let effective_rate = num_reads as f64 / runtime;
