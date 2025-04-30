@@ -1,6 +1,5 @@
 pub mod frame;
 pub mod register;
-use chrono::DateTime;
 pub use frame::*;
 pub use imu_traits::{ImuData, ImuError, ImuFrequency, ImuReader, Quaternion, Vector3};
 pub use register::*;

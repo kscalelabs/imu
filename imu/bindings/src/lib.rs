@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use std::time::Duration;
 
 use pyo3::exceptions::PyRuntimeError;
@@ -104,6 +105,39 @@ impl From<PyQuaternion> for Quaternion {
     }
 }
 
+// Wrap the Quaternion struct
+#[pyclass(name = "Timestamp")]
+#[derive(Clone)]
+struct PyTimestamp {
+    #[pyo3(get, set)]
+    date: String,
+    #[pyo3(get, set)]
+    time: String,
+}
+
+#[pymethods]
+impl PyTimestamp {
+    #[new]
+    fn new(date: String, time: String) -> Self {
+        PyTimestamp { date, time }
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("Timestamp(date={}, time={})", self.date, self.time))
+    }
+}
+
+impl From<DateTime<Utc>> for PyTimestamp {
+    fn from(dt: DateTime<Utc>) -> Self {
+        PyTimestamp {
+            // Format date as YYYY-MM-DD
+            date: dt.format("%Y-%m-%d").to_string(),
+            // Format time as HH:MM:SS.ffffff+ZZZZ
+            time: dt.format("%H:%M:%S%.6f%:z").to_string(),
+        }
+    }
+}
+
 // Generic IMU Reader class for Python
 #[pyclass(name = "ImuReader")]
 struct PyImuReader {
@@ -145,6 +179,10 @@ impl PyImuReader {
                 if let Some(cal) = data.calibration_status {
                     dict.set_item("calibration_status", cal)?;
                 }
+                if let Some(timestamp) = data.timestamp {
+                    dict.set_item("timestamp", PyTimestamp::from(timestamp))?;
+                }
+                dict.set_item("effective_frequency", data.effective_frequency)?;
 
                 Ok(dict.into())
             }
@@ -335,6 +373,7 @@ fn create_hexmove_reader(can_interface: &str, node_id: u8, param_id: u8) -> PyRe
 fn bindings(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyVector3>()?;
     m.add_class::<PyQuaternion>()?;
+    m.add_class::<PyTimestamp>()?;
     m.add_class::<PyImuReader>()?;
     m.add_class::<PyHiwonderOutput>()?;
 
