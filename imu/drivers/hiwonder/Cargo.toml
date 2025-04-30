@@ -18,7 +18,7 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 clap = { version = "4.5.37", features = ["derive"] }
 strum = "0.27.1"
 strum_macros = "0.27.1"
-
+chrono = "0.4"
 [lib]
 
 name = "hiwonder"

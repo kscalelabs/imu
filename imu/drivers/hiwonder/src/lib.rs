@@ -1,5 +1,6 @@
 pub mod frame;
 pub mod register;
+use chrono::DateTime;
 pub use frame::*;
 pub use imu_traits::{ImuData, ImuError, ImuFrequency, ImuReader, Quaternion, Vector3};
 pub use register::*;
@@ -384,6 +385,16 @@ impl HiwonderReader {
             ReadFrame::Quaternion { w, x, y, z } => {
                 imu_data.quaternion = Some(Quaternion { w, x, y, z });
             }
+            ReadFrame::Time { year, month, day, hour, minute, second, ms } => {
+                let naive_date_opt = chrono::NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32);
+                let naive_time_opt = chrono::NaiveTime::from_hms_milli_opt(hour as u32, minute as u32, second as u32, ms as u32);
+                let utc_dt_opt = naive_date_opt.and_then(|naive_date| naive_time_opt.map(|naive_time| {
+                    chrono::NaiveDateTime::new(naive_date, naive_time)
+                })).map(|naive_dt| {
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive_dt, chrono::Utc)
+                });
+                imu_data.timestamp = utc_dt_opt;
+            }
             _ => (),
         }
     }
@@ -394,6 +405,11 @@ impl HiwonderReader {
         let port = Arc::clone(&self.port);
         let frame_parser = Arc::clone(&self.frame_parser);
         let mode = Arc::clone(&self.mode);
+
+        let mut num_reads: u64 = 0; // Should be enough for 200Hz :) 
+        let start_time = Instant::now();
+
+        let mut last_data = ImuData::default();
 
         thread::spawn(move || {
             while let Ok(guard) = running.read() {
@@ -409,6 +425,7 @@ impl HiwonderReader {
                                     warn!("No frames read from port");
                                 }
                                 for frame in frames {
+                                    
                                     if let Ok(mut imu_data) = data.write() {
                                         debug!("Setting data for frame: {:?}", frame);
                                         Self::set_data(&mut imu_data, &frame);
@@ -418,6 +435,24 @@ impl HiwonderReader {
                                 }
                             }
                             Err(e) => error!("Error reading/parsing frames in thread: {}", e),
+                        }
+                        let current_data = match data.read() {
+                            Ok(data) => data,
+                            Err(e) => {
+                                error!("Failed to read IMU data: {}", e);
+                                continue;
+                            }   
+                        };
+                        if last_data != current_data {
+                            num_reads += 1;
+                            let runtime = start_time.elapsed().as_secs_f64();
+                            let effective_rate = num_reads as f64 / runtime;
+                            trace!("Effective rate: {:?}", effective_rate);
+                            if let Ok(mut imu_data) = data.write() {
+                                imu_data.effective_frequency = effective_rate as f32;
+                            }else{
+                                error!("Failed to write to IMU data");
+                            }
                         }
                     } else {
                         debug!("IMU is in write mode");
