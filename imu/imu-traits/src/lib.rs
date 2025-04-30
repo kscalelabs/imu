@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
@@ -110,6 +111,10 @@ pub struct ImuData {
     pub temperature: Option<f32>,
     /// Calibration status
     pub calibration_status: Option<u8>,
+    /// Timestamp from the IMU device (date time)
+    pub timestamp: Option<DateTime<Utc>>,
+    /// Effective IMU frequency (Hz) - calculate driver-side
+    pub effective_frequency: f32,
 }
 
 // --- Standard Error Type ---
