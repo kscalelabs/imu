@@ -538,7 +538,7 @@ impl HiwonderReader {
             mode: &'a Arc<RwLock<ImuMode>>,
         }
 
-        impl<'a> Drop for ModeGuard<'a> {
+        impl Drop for ModeGuard<'_> {
             fn drop(&mut self) {
                 if let Ok(mut guard) = self.mode.write() {
                     *guard = ImuMode::Read; // Always set back to Read on exit

@@ -198,7 +198,7 @@ pub enum PyHiwonderOutput {
 }
 
 impl PyHiwonderOutput {
-    fn to_hiwonder_output(self) -> HiwonderOutput {
+    fn to_hiwonder_output(&self) -> HiwonderOutput {
         match self {
             PyHiwonderOutput::TIME => HiwonderOutput::TIME,
             PyHiwonderOutput::ACC => HiwonderOutput::ACC,
