@@ -91,7 +91,7 @@ impl fmt::Display for Quaternion {
 }
 
 // --- Standard IMU Data ---
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct ImuData {
     /// Acceleration including gravity (m/s²)
     pub accelerometer: Option<Vector3>,
@@ -210,4 +210,113 @@ pub enum ImuFrequency {
     Hz200,  // 200 Hz
     Single, // Single reading
     None,   // No readings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vector3_equality() {
+        let v1 = Vector3 { x: 1.0, y: 2.0, z: 3.0 };
+        let v2 = Vector3 { x: 1.0, y: 2.0, z: 3.0 };
+        let v3 = Vector3 { x: 4.0, y: 5.0, z: 6.0 };
+
+        assert_eq!(v1, v2);
+        assert_ne!(v1, v3);
+        assert_ne!(v2, v3);
+    }
+
+    #[test]
+    fn test_quaternion_equality() {
+        let q1 = Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
+        let q2 = Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
+        let q3 = Quaternion { w: 0.707, x: 0.707, y: 0.0, z: 0.0 };
+
+        assert_eq!(q1, q2);
+        assert_ne!(q1, q3);
+        assert_ne!(q2, q3);
+    }
+
+    #[test]
+    fn test_imu_data_equality() {
+        let ts = Utc::now();
+        let data1 = ImuData {
+            accelerometer: Some(Vector3::new(1.0, 2.0, 3.0)),
+            gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
+            magnetometer: None,
+            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            euler: None,
+            linear_acceleration: None,
+            gravity: None,
+            temperature: Some(25.5),
+            calibration_status: Some(3),
+            timestamp: Some(ts),
+            effective_frequency: 100.0,
+        };
+
+        let data2 = ImuData { // Identical to data1
+            accelerometer: Some(Vector3::new(1.0, 2.0, 3.0)),
+            gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
+            magnetometer: None,
+            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            euler: None,
+            linear_acceleration: None,
+            gravity: None,
+            temperature: Some(25.5),
+            calibration_status: Some(3),
+            timestamp: Some(ts),
+            effective_frequency: 100.0,
+        };
+
+        let data3 = ImuData { // Different temperature
+            accelerometer: Some(Vector3::new(1.0, 2.0, 3.0)),
+            gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
+            magnetometer: None,
+            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            euler: None,
+            linear_acceleration: None,
+            gravity: None,
+            temperature: Some(26.0), // Changed
+            calibration_status: Some(3),
+            timestamp: Some(ts),
+            effective_frequency: 100.0,
+        };
+
+         let data4 = ImuData { // Different accelerometer
+            accelerometer: Some(Vector3::new(1.1, 2.0, 3.0)), // Changed
+            gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
+            magnetometer: None,
+            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            euler: None,
+            linear_acceleration: None,
+            gravity: None,
+            temperature: Some(25.5),
+            calibration_status: Some(3),
+            timestamp: Some(ts),
+            effective_frequency: 100.0,
+        };
+
+         let data5 = ImuData { // Different timestamp (requires a slight delay)
+            accelerometer: Some(Vector3::new(1.0, 2.0, 3.0)),
+            gyroscope: Some(Vector3::new(0.1, 0.2, 0.3)),
+            magnetometer: None,
+            quaternion: Some(Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }),
+            euler: None,
+            linear_acceleration: None,
+            gravity: None,
+            temperature: Some(25.5),
+            calibration_status: Some(3),
+            timestamp: Some(Utc::now()), // Potentially different
+            effective_frequency: 100.0,
+        };
+
+
+        assert_eq!(data1, data2);
+        assert_ne!(data1, data3);
+        assert_ne!(data1, data4);
+        if data1.timestamp != data5.timestamp {
+             assert_ne!(data1, data5);
+        }
+    }
 }
