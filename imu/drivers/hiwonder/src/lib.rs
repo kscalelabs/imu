@@ -394,8 +394,12 @@ impl HiwonderReader {
                 second,
                 ms,
             } => {
-                let naive_date_opt =
-                    chrono::NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32);
+                // We add 1 to the values because chrono expects 1-indexed months, days, and years
+                let naive_date_opt = chrono::NaiveDate::from_ymd_opt(
+                    year as i32 + 1,
+                    month as u32 + 1,
+                    day as u32 + 1,
+                );
                 let naive_time_opt = chrono::NaiveTime::from_hms_milli_opt(
                     hour as u32,
                     minute as u32,
