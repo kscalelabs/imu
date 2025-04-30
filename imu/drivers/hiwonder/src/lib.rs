@@ -384,6 +384,40 @@ impl HiwonderReader {
             ReadFrame::Quaternion { w, x, y, z } => {
                 imu_data.quaternion = Some(Quaternion { w, x, y, z });
             }
+            ReadFrame::Time {
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
+                ms,
+            } => {
+                // We add 1 to the values because chrono expects 1-indexed months, days, and years
+                let naive_date_opt = chrono::NaiveDate::from_ymd_opt(
+                    year as i32 + 1,
+                    month as u32 + 1,
+                    day as u32 + 1,
+                );
+                let naive_time_opt = chrono::NaiveTime::from_hms_milli_opt(
+                    hour as u32,
+                    minute as u32,
+                    second as u32,
+                    ms as u32,
+                );
+                let utc_dt_opt = naive_date_opt
+                    .and_then(|naive_date| {
+                        naive_time_opt
+                            .map(|naive_time| chrono::NaiveDateTime::new(naive_date, naive_time))
+                    })
+                    .map(|naive_dt| {
+                        chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                            naive_dt,
+                            chrono::Utc,
+                        )
+                    });
+                imu_data.timestamp = utc_dt_opt;
+            }
             _ => (),
         }
     }
@@ -394,6 +428,11 @@ impl HiwonderReader {
         let port = Arc::clone(&self.port);
         let frame_parser = Arc::clone(&self.frame_parser);
         let mode = Arc::clone(&self.mode);
+
+        let mut num_reads: u64 = 0; // Should be enough for 200Hz :)
+        let start_time = Instant::now();
+
+        let mut last_data = ImuData::default();
 
         thread::spawn(move || {
             while let Ok(guard) = running.read() {
@@ -422,9 +461,50 @@ impl HiwonderReader {
                     } else {
                         debug!("IMU is in write mode");
                     }
-
-                    thread::sleep(Duration::from_millis(4));
                 }
+
+                // Calculate effective rate
+                if let Ok(mode) = mode.read() {
+                    if *mode == ImuMode::Read {
+                        let data_changed;
+                        let effective_rate;
+
+                        {
+                            let current_data_guard = match data.read() {
+                                Ok(guard) => guard,
+                                Err(e) => {
+                                    error!("Failed to read IMU data for comparison: {}", e);
+                                    continue;
+                                }
+                            };
+
+                            data_changed = last_data != *current_data_guard;
+                            if data_changed {
+                                num_reads += 1;
+                            }
+                            let runtime = start_time.elapsed().as_secs_f64();
+                            effective_rate = num_reads as f64 / runtime;
+                            trace!(
+                                "Effective rate: {:.2} Hz ({} updates)",
+                                effective_rate,
+                                num_reads
+                            );
+
+                            last_data = *current_data_guard;
+                        }
+
+                        if data_changed {
+                            if let Ok(mut imu_data) = data.write() {
+                                imu_data.effective_frequency = effective_rate as f32;
+                            } else {
+                                error!(
+                                    "Failed to acquire write lock to update effective_frequency"
+                                );
+                            }
+                        }
+                    }
+                }
+                thread::sleep(Duration::from_millis(1));
             }
         });
 

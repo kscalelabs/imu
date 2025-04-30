@@ -4,6 +4,7 @@ from .bindings import (
     HiwonderOutput,
     ImuReader,
     Quaternion,
+    Timestamp,
     Vector3,
     create_bmi088_reader,
     create_bno055_reader,
@@ -50,7 +51,10 @@ __all__ = [
     # Data types
     "Vector3",
     "Quaternion",
+    "Timestamp",
     "ImuReader",
+    "HiwonderOutput",
+    # IMU creation functions
     "create_bno055",
     "create_hiwonder",
     "create_bmi088",
@@ -59,5 +63,4 @@ __all__ = [
     "create_hiwonder_reader",
     "create_bmi088_reader",
     "create_hexmove_reader",
-    "HiwonderOutput",
 ]

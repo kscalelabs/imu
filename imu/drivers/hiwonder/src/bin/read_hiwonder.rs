@@ -1,3 +1,4 @@
+use chrono::DateTime;
 // Example usage:
 // RUST_LOG=info cargo run --bin read_hiwonder -- --device /dev/tty.usbserial-110 --baud_rate 230400
 use clap::Parser;
@@ -142,7 +143,12 @@ fn main() -> io::Result<()> {
 
     reader
         .set_output_mode(
-            Output::QUATERNION | Output::ANGLE | Output::MAG | Output::ACC | Output::GYRO,
+            Output::QUATERNION
+                | Output::ANGLE
+                | Output::MAG
+                | Output::ACC
+                | Output::GYRO
+                | Output::TIME,
             Duration::from_secs(1),
         )
         .map_err(|e| {
@@ -202,8 +208,10 @@ fn main() -> io::Result<()> {
                     mag:   x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
                     temp:  {: >10.3}\n\
                     gravity: x: {: >10.3} y: {: >10.3} z: {: >10.3}\n\
+                    time: {: >10.3}\n\
                     Duplicate: {} {}\n\
-                    Rate: {:.1} Hz effective ({:.1} Hz raw)\n",
+                    Rate: {:.1} Hz effective ({:.1} Hz raw)\n\
+                    Direct IMU Rate: {:.1} Hz\n",
                     current_frame.accelerometer.x,
                     current_frame.accelerometer.y,
                     current_frame.accelerometer.z,
@@ -233,6 +241,7 @@ fn main() -> io::Result<()> {
                         .unwrap_or(Quaternion::default())
                         .rotate(Vector3::new(0.0, 0.0, -1.0))
                         .z,
+                    data.timestamp.unwrap_or(DateTime::default()),
                     is_duplicate,
                     if !is_duplicate {
                         format!("(changed: {})", changed_sensors.join(", "))
@@ -240,7 +249,8 @@ fn main() -> io::Result<()> {
                         String::new()
                     },
                     effective_rate,
-                    raw_rate
+                    raw_rate,
+                    data.effective_frequency
                 );
             }
             Err(e) if e.to_string().contains("No new data available") => {}
