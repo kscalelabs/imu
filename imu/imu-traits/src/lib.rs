@@ -52,10 +52,57 @@ impl fmt::Display for Vector3 {
 }
 
 impl Quaternion {
-    pub fn rotate(&self, vector: Vector3) -> Vector3 {
+    /// Rotate a vector; mirrors the Python helper exactly.
+    pub fn rotate_vector(&self, v: Vector3, inverse: bool) -> Vector3 {
         // Rotate a vector by a quaternion using the formula:
         // v' = q * v * q^-1
-        // Where q^-1 is the conjugate since we assume unit quaternions
+        // Where q^-1 is the conjugate since we normalize the quaternion
+        const EPS: f32 = 1e-6;
+        let n2 = self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z;
+        let scale = 1.0 / (n2.sqrt() + EPS);
+
+        let w = self.w * scale;
+        let mut x = self.x * scale;
+        let mut y = self.y * scale;
+        let mut z = self.z * scale;
+
+        // 2. Conjugate if inverse
+        if inverse {
+            x = -x;
+            y = -y;
+            z = -z;
+        }
+
+        // 3. Apply the same expanded formula
+        let vx = v.x;
+        let vy = v.y;
+        let vz = v.z;
+        let xx = w * w * vx + 2.0 * y * w * vz - 2.0 * z * w * vy
+            + x * x * vx
+            + 2.0 * y * x * vy
+            + 2.0 * z * x * vz
+            - z * z * vx
+            - y * y * vx;
+        let yy = 2.0 * x * y * vx + y * y * vy + 2.0 * z * y * vz + 2.0 * w * z * vx - z * z * vy
+            + w * w * vy
+            - 2.0 * w * x * vz
+            - x * x * vy;
+        let zz = 2.0 * x * z * vx + 2.0 * y * z * vy + z * z * vz - 2.0 * w * y * vx
+            + w * w * vz
+            + 2.0 * w * x * vy
+            - y * y * vz
+            - x * x * vz;
+
+        Vector3 {
+            x: xx,
+            y: yy,
+            z: zz,
+        }
+    }
+}
+
+impl Quaternion {
+    pub fn rotate(&self, vector: Vector3) -> Vector3 {
         let qw = self.w;
         let qx = self.x;
         let qy = self.y;
