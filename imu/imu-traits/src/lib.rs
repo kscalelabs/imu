@@ -52,7 +52,6 @@ impl fmt::Display for Vector3 {
 }
 
 impl Quaternion {
-    /// Rotate a vector; mirrors the Python helper exactly.
     pub fn rotate_vector(&self, v: Vector3, inverse: bool) -> Vector3 {
         // Rotate a vector by a quaternion using the formula:
         // v' = q * v * q^-1
@@ -73,7 +72,7 @@ impl Quaternion {
             z = -z;
         }
 
-        // 3. Apply the same expanded formula
+        // 3. Apply the expanded formula
         let vx = v.x;
         let vy = v.y;
         let vz = v.z;
