@@ -3,7 +3,7 @@
 name = "hexmove"
 readme = "README.md"
 description = "Interface for interacting with Hexmove IMUs"
-version = "0.2.2"
+version = "0.2.3"
 authors.workspace = true
 edition.workspace = true
 repository.workspace = true
