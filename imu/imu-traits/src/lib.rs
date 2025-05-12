@@ -100,31 +100,6 @@ impl Quaternion {
     }
 }
 
-impl Quaternion {
-    pub fn rotate(&self, vector: Vector3) -> Vector3 {
-        let qw = self.w;
-        let qx = self.x;
-        let qy = self.y;
-        let qz = self.z;
-        let vx = vector.x;
-        let vy = vector.y;
-        let vz = vector.z;
-
-        // Calculate rotation using quaternion multiplication
-        let x = (1.0 - 2.0 * qy * qy - 2.0 * qz * qz) * vx
-            + (2.0 * qx * qy - 2.0 * qz * qw) * vy
-            + (2.0 * qx * qz + 2.0 * qy * qw) * vz;
-        let y = (2.0 * qx * qy + 2.0 * qz * qw) * vx
-            + (1.0 - 2.0 * qx * qx - 2.0 * qz * qz) * vy
-            + (2.0 * qy * qz - 2.0 * qx * qw) * vz;
-        let z = (2.0 * qx * qz - 2.0 * qy * qw) * vx
-            + (2.0 * qy * qz + 2.0 * qx * qw) * vy
-            + (1.0 - 2.0 * qx * qx - 2.0 * qy * qy) * vz;
-
-        Vector3 { x, y, z }
-    }
-}
-
 impl fmt::Display for Quaternion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
