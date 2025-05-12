@@ -223,15 +223,15 @@ fn main() -> io::Result<()> {
                     current_frame.temperature,
                     data.quaternion
                         .unwrap_or(Quaternion::default())
-                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .rotate_vector(Vector3::new(0.0, 0.0, -1.0), true)
                         .x,
                     data.quaternion
                         .unwrap_or(Quaternion::default())
-                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .rotate_vector(Vector3::new(0.0, 0.0, -1.0), true)
                         .y,
                     data.quaternion
                         .unwrap_or(Quaternion::default())
-                        .rotate(Vector3::new(0.0, 0.0, -1.0))
+                        .rotate_vector(Vector3::new(0.0, 0.0, -1.0), true)
                         .z,
                     is_duplicate,
                     if !is_duplicate {
