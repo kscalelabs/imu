@@ -7,8 +7,9 @@ import sys
 import os
 import time
 
-# Add the current directory to the path so we can import the imu module
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add the project root to the path so we can import the imu module
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
 
 try:
     from imu import create_lsm6dsvtr, Vector3, Quaternion
@@ -86,4 +87,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
