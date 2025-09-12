@@ -9,6 +9,7 @@ from .bindings import (
     create_bno055_reader,
     create_hexmove_reader,
     create_hiwonder_reader,
+    create_lsm6dsvtr_reader,
 )
 
 
@@ -44,6 +45,10 @@ def create_bmi088(i2c_device: str = "/dev/i2c-1") -> ImuReader:
 def create_hexmove(can_interface: str = "can0", node_id: int = 1, param_id: int = 1) -> ImuReader:
     """Create a Hexmove IMU reader on the specified CAN interface."""
     return create_hexmove_reader(can_interface, node_id, param_id)
+
+def create_lsm6dsvtr(spi_device: str = "/dev/spi-1") -> ImuReader:
+    """Create a LSM6DSVTR IMU reader on the specified SPI device."""
+    return create_lsm6dsvtr_reader(spi_device)
 
 
 __all__ = [

@@ -331,6 +331,26 @@ fn create_hexmove_reader(can_interface: &str, node_id: u8, param_id: u8) -> PyRe
     }
 }
 
+#[pyfunction]
+fn create_lsm6dsvtr_reader(spi_device: &str) -> PyResult<PyImuReader> {
+    #[cfg(target_os = "linux")]
+    {
+        match imu::Lsm6dsvReader::new(spi_device) {
+            Ok(reader) => Ok(PyImuReader {
+                reader: Box::new(reader),
+            }),
+            Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = spi_device;
+        Err(PyRuntimeError::new_err(
+            "LSM6DSV reader is only available on Linux systems.",
+        ))
+    }
+}
+
 #[pymodule]
 fn bindings(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyVector3>()?;
@@ -345,6 +365,8 @@ fn bindings(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(create_bmi088_reader, m)?)?;
 
     m.add_function(wrap_pyfunction!(create_hexmove_reader, m)?)?;
+
+    m.add_function(wrap_pyfunction!(create_lsm6dsvtr_reader, m)?)?;
 
     Ok(())
 }

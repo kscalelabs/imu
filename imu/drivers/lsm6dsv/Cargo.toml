@@ -1,0 +1,15 @@
+[package]
+name = "lsm6dsv"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+spidev = "0.6"
+byteorder = "1.5"
+log = "0.4"
+imu-traits = "0.1"
+
+[lib]
+name = "lsm6dsv"
+path = "src/lib.rs"
+
